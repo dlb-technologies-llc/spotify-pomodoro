@@ -46,7 +46,7 @@ const parseLogLevel = (level: string | undefined): LogLevel.LogLevel => {
  */
 const shouldUsePrettyLogger = (): boolean => {
 	const logFormat = (
-		import.meta.env.PUBLIC_LOG_FORMAT || import.meta.env.LOG_FORMAT
+		import.meta.env.PUBLIC_LOG_FORMAT || process.env.LOG_FORMAT
 	)?.toLowerCase();
 	if (logFormat === "json") return false;
 	if (logFormat === "pretty") return true;
@@ -61,8 +61,7 @@ const shouldUsePrettyLogger = (): boolean => {
  * @category Logging
  */
 const getLogLevel = (): LogLevel.LogLevel => {
-	const envLevel =
-		import.meta.env.PUBLIC_LOG_LEVEL || import.meta.env.LOG_LEVEL;
+	const envLevel = import.meta.env.PUBLIC_LOG_LEVEL || process.env.LOG_LEVEL;
 	return parseLogLevel(envLevel);
 };
 
