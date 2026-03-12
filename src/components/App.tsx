@@ -4,7 +4,7 @@
  * @module
  */
 
-import { Globe, Smartphone } from "lucide-react";
+import { Globe, Smartphone, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Playlist } from "../effect/schema/Playlist";
 import {
@@ -39,6 +39,8 @@ export function App() {
 		error: playbackError,
 		clearError,
 		deviceSource,
+		tabTookOver,
+		clearTabTookOver,
 	} = useSpotifyPlayback();
 
 	const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(
@@ -99,6 +101,12 @@ export function App() {
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [isRunning, phase, start, reset, skip, stop]);
+
+	useEffect(() => {
+		if (!tabTookOver) return;
+		const timeout = setTimeout(() => clearTabTookOver(), 10_000);
+		return () => clearTimeout(timeout);
+	}, [tabTookOver, clearTabTookOver]);
 
 	const handlePlaylistSelect = async (playlist: Playlist) => {
 		setSelectedPlaylist(playlist);
@@ -410,6 +418,29 @@ export function App() {
 						className="text-muted-foreground hover:text-foreground transition-colors"
 					>
 						×
+					</button>
+				</div>
+			)}
+
+			{tabTookOver && (
+				<div
+					className={cn(
+						"fixed bottom-4 left-1/2 -translate-x-1/2 z-50",
+						"px-4 py-3 rounded-xl",
+						"bg-yellow-500/10 border border-yellow-500/20",
+						"backdrop-blur-sm shadow-lg",
+						"flex items-center gap-3",
+					)}
+				>
+					<span className="text-sm text-yellow-500">
+						Playback moved to another tab
+					</span>
+					<button
+						type="button"
+						onClick={clearTabTookOver}
+						className="text-yellow-500/60 hover:text-yellow-500 transition-colors"
+					>
+						<X className="w-4 h-4" />
 					</button>
 				</div>
 			)}

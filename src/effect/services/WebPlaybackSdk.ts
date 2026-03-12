@@ -41,6 +41,7 @@ export class WebPlaybackSdk extends Effect.Service<WebPlaybackSdk>()(
 			const stateRef = yield* Ref.make<Option.Option<PlayerState>>(
 				Option.none(),
 			);
+			const disconnectedRef = yield* Ref.make(false);
 
 			const destroy = Effect.gen(function* () {
 				const state = yield* Ref.get(stateRef);
@@ -49,8 +50,12 @@ export class WebPlaybackSdk extends Effect.Service<WebPlaybackSdk>()(
 					onSome: ({ player }) =>
 						Effect.gen(function* () {
 							yield* Effect.logInfo("Destroying Web Playback SDK player");
-							yield* Effect.sync(() => player.disconnect());
+							yield* Effect.sync(() => {
+								player.removeListener("not_ready");
+								player.disconnect();
+							});
 							yield* Ref.set(stateRef, Option.none());
+							yield* Ref.set(disconnectedRef, false);
 						}),
 				});
 			}).pipe(Effect.withLogSpan("WebPlaybackSdk.destroy"));
@@ -59,6 +64,8 @@ export class WebPlaybackSdk extends Effect.Service<WebPlaybackSdk>()(
 				void,
 				SdkUnavailableError | PremiumRequiredError
 			> = Effect.gen(function* () {
+				yield* Ref.set(disconnectedRef, false);
+
 				const current = yield* Ref.get(stateRef);
 				if (Option.isSome(current)) {
 					yield* Effect.logDebug(
@@ -177,6 +184,12 @@ export class WebPlaybackSdk extends Effect.Service<WebPlaybackSdk>()(
 
 				yield* Ref.set(stateRef, Option.some({ player, deviceId }));
 
+				player.addListener("not_ready", () => {
+					Effect.runSync(Ref.set(disconnectedRef, true));
+					Effect.runSync(Ref.set(stateRef, Option.none()));
+					/** Do NOT call player.disconnect() here — Spotify is already disconnecting the device */
+				});
+
 				yield* Effect.sleep("500 millis");
 			}).pipe(Effect.withLogSpan("WebPlaybackSdk.initialize"));
 
@@ -218,6 +231,14 @@ export class WebPlaybackSdk extends Effect.Service<WebPlaybackSdk>()(
 					);
 				}).pipe(Effect.withLogSpan("WebPlaybackSdk.getDeviceState"));
 
+			/**
+			 * Whether the player has been disconnected by Spotify (e.g., another tab took over).
+			 *
+			 * @since 1.4.0
+			 * @category Services
+			 */
+			const isDisconnected: Effect.Effect<boolean> = Ref.get(disconnectedRef);
+
 			yield* Effect.logDebug("WebPlaybackSdk initialized");
 
 			return {
@@ -225,6 +246,7 @@ export class WebPlaybackSdk extends Effect.Service<WebPlaybackSdk>()(
 				ensureDevice,
 				getDeviceState,
 				destroy,
+				isDisconnected,
 			};
 		}),
 		accessors: true,

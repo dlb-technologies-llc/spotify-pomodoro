@@ -111,6 +111,7 @@ describe("WebPlaybackSdk", () => {
 					),
 				),
 				destroy: Effect.void,
+				isDisconnected: Effect.succeed(false),
 			}),
 		);
 
@@ -158,6 +159,7 @@ describe("WebPlaybackSdk", () => {
 							),
 							getDeviceState: Effect.succeed(Option.none()),
 							destroy: Effect.void,
+							isDisconnected: Effect.succeed(false),
 						}),
 					),
 				),
@@ -194,6 +196,35 @@ describe("WebPlaybackSdk", () => {
 							),
 							getDeviceState: Effect.succeed(Option.none()),
 							destroy: Effect.void,
+							isDisconnected: Effect.succeed(false),
+						}),
+					),
+				),
+			),
+		);
+
+		it.effect("mock isDisconnected returns false by default", () =>
+			Effect.gen(function* () {
+				const disconnected = yield* WebPlaybackSdk.isDisconnected;
+				expect(disconnected).toBe(false);
+			}).pipe(Effect.provide(MockWebPlaybackSdk)),
+		);
+
+		it.effect("mock can simulate disconnected state", () =>
+			Effect.gen(function* () {
+				const disconnected = yield* WebPlaybackSdk.isDisconnected;
+				expect(disconnected).toBe(true);
+			}).pipe(
+				Effect.provide(
+					Layer.succeed(
+						WebPlaybackSdk,
+						WebPlaybackSdk.of({
+							_tag: "WebPlaybackSdk",
+							initialize: Effect.void,
+							ensureDevice: Effect.succeed(mockDeviceId),
+							getDeviceState: Effect.succeed(Option.none()),
+							destroy: Effect.void,
+							isDisconnected: Effect.succeed(true),
 						}),
 					),
 				),
