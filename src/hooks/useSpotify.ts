@@ -107,6 +107,9 @@ export function useSpotifyPlayback() {
 	const [isLoading, setIsLoading] = useState(false);
 	const [lastDeviceId, setLastDeviceId] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [deviceSource, setDeviceSource] = useState<"remote" | "browser" | null>(
+		null,
+	);
 
 	const clearError = useCallback(() => setError(null), []);
 
@@ -118,8 +121,15 @@ export function useSpotifyPlayback() {
 			if (result?.deviceId) {
 				setLastDeviceId(result.deviceId);
 			}
+			if (result?.deviceName) {
+				setDeviceSource(
+					result.deviceName === "Spotify Pomodoro" ? "browser" : "remote",
+				);
+			} else {
+				setDeviceSource(null);
+			}
 		} catch {
-			// Ignore errors - user might not have an active device
+			/** Ignore errors - user might not have an active device */
 		} finally {
 			setIsLoading(false);
 		}
@@ -132,8 +142,23 @@ export function useSpotifyPlayback() {
 				const deviceId = playbackState?.deviceId ?? lastDeviceId ?? undefined;
 				await runEffect(SpotifyClient.play({ ...options, deviceId }));
 				await fetchPlaybackState();
-			} catch {
-				setError("Open Spotify on your phone or computer first");
+			} catch (e: unknown) {
+				if (e && typeof e === "object" && "_tag" in e) {
+					const tagged = e as { _tag: string };
+					if (tagged._tag === "PremiumRequiredError") {
+						setError(
+							"Spotify Premium required for browser playback. Open Spotify on another device instead.",
+						);
+					} else if (tagged._tag === "SdkUnavailableError") {
+						setError(
+							"Browser player unavailable. Open Spotify on your phone or computer.",
+						);
+					} else {
+						setError("Open Spotify on your phone or computer first");
+					}
+				} else {
+					setError("Open Spotify on your phone or computer first");
+				}
 			}
 		},
 		[fetchPlaybackState, playbackState?.deviceId, lastDeviceId],
@@ -157,6 +182,7 @@ export function useSpotifyPlayback() {
 		isLoading,
 		error,
 		clearError,
+		deviceSource,
 		fetchPlaybackState,
 		play,
 		pause,

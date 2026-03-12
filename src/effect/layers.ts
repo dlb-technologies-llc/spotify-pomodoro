@@ -12,13 +12,19 @@ import { SessionRepository } from "./services/SessionRepository";
 import { SpotifyAuth } from "./services/SpotifyAuth";
 import { SpotifyClient } from "./services/SpotifyClient";
 import { Timer } from "./services/Timer";
+import { WebPlaybackSdk } from "./services/WebPlaybackSdk";
 
 const SpotifyAuthLive = SpotifyAuth.Default.pipe(
 	Layer.provide(FetchHttpClient.layer),
 );
 
+const WebPlaybackSdkLive = WebPlaybackSdk.Default.pipe(
+	Layer.provide(SpotifyAuthLive),
+);
+
 const SpotifyClientLive = SpotifyClient.Default.pipe(
 	Layer.provide(SpotifyAuthLive),
+	Layer.provide(WebPlaybackSdkLive),
 	Layer.provide(FetchHttpClient.layer),
 );
 
@@ -31,6 +37,7 @@ const SpotifyClientLive = SpotifyClient.Default.pipe(
 export const MainLayer = Layer.mergeAll(
 	SpotifyAuthLive,
 	SpotifyClientLive,
+	WebPlaybackSdkLive,
 	Timer.Default,
 	AudioNotification.Default,
 	LoggingLayer,
