@@ -5,7 +5,7 @@
  */
 
 import { Option } from "effect";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { runEffect } from "../effect/runtime";
 import type { PlaybackState, Playlist } from "../effect/schema/Playlist";
 import { SpotifyAuth } from "../effect/services/SpotifyAuth";
@@ -110,8 +110,30 @@ export function useSpotifyPlayback() {
 	const [deviceSource, setDeviceSource] = useState<"remote" | "browser" | null>(
 		null,
 	);
+	const [tabTookOver, setTabTookOver] = useState(false);
+
+	const clearTabTookOver = useCallback(() => setTabTookOver(false), []);
+
+	const broadcastRef = useRef<BroadcastChannel | null>(null);
 
 	const clearError = useCallback(() => setError(null), []);
+
+	useEffect(() => {
+		const channel = new BroadcastChannel("spotify-pomodoro-sdk");
+		broadcastRef.current = channel;
+
+		channel.onmessage = (event: MessageEvent) => {
+			if (event.data?.type === "sdk-claimed" && deviceSource === "browser") {
+				setTabTookOver(true);
+				setDeviceSource(null);
+			}
+		};
+
+		return () => {
+			channel.close();
+			broadcastRef.current = null;
+		};
+	}, [deviceSource]);
 
 	const fetchPlaybackState = useCallback(async () => {
 		setIsLoading(true);
@@ -121,15 +143,18 @@ export function useSpotifyPlayback() {
 			if (result?.deviceId) {
 				setLastDeviceId(result.deviceId);
 			}
+			let source: "remote" | "browser" | null = null;
 			if (result?.deviceName) {
-				setDeviceSource(
-					result.deviceName === "Spotify Pomodoro" ? "browser" : "remote",
-				);
+				source =
+					result.deviceName === "Spotify Pomodoro" ? "browser" : "remote";
+				setDeviceSource(source);
 			} else {
 				setDeviceSource(null);
 			}
+			return source;
 		} catch {
 			/** Ignore errors - user might not have an active device */
+			return null;
 		} finally {
 			setIsLoading(false);
 		}
@@ -141,7 +166,10 @@ export function useSpotifyPlayback() {
 			try {
 				const deviceId = playbackState?.deviceId ?? lastDeviceId ?? undefined;
 				await runEffect(SpotifyClient.play({ ...options, deviceId }));
-				await fetchPlaybackState();
+				const newSource = await fetchPlaybackState();
+				if (newSource === "browser") {
+					broadcastRef.current?.postMessage({ type: "sdk-claimed" });
+				}
 			} catch (e: unknown) {
 				if (e && typeof e === "object" && "_tag" in e) {
 					const tagged = e as { _tag: string };
@@ -183,6 +211,8 @@ export function useSpotifyPlayback() {
 		error,
 		clearError,
 		deviceSource,
+		tabTookOver,
+		clearTabTookOver,
 		fetchPlaybackState,
 		play,
 		pause,
