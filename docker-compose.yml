@@ -1,6 +1,9 @@
 services:
   app:
     build: .
+    image: ghcr.io/davidlbowman/spotify-pomodoro:${IMAGE_TAG:-latest}
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
     ports:
       - "${PORT:-2500}:${PORT:-2500}"
     volumes:
