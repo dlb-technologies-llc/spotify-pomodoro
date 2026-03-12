@@ -11,6 +11,7 @@ import { AudioNotification } from "./services/AudioNotification";
 import { SessionRepository } from "./services/SessionRepository";
 import { SpotifyAuth } from "./services/SpotifyAuth";
 import { SpotifyClient } from "./services/SpotifyClient";
+import { TelemetryLive } from "./services/Telemetry";
 import { Timer } from "./services/Timer";
 import { WebPlaybackSdk } from "./services/WebPlaybackSdk";
 
@@ -62,6 +63,7 @@ export type MainContext = Layer.Success<typeof MainLayer>;
 export const ServerLayer = Layer.mergeAll(
 	SessionRepository.layer,
 	LoggingLayer,
+	TelemetryLive,
 );
 
 /**
