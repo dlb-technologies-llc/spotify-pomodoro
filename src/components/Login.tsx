@@ -29,7 +29,7 @@ export function Login({ returnUrl = "/" }: LoginProps) {
 	const [error, setError] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
 
-	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+	const handleSubmit = async (e: React.SubmitEvent) => {
 		e.preventDefault();
 		setError(null);
 		setIsLoading(true);

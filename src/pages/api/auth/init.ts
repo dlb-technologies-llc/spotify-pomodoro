@@ -59,8 +59,8 @@ export const GET: APIRoute = async ({ session }) => {
 
 	const state = randomUUID();
 
-	await session.set("pkce_verifier", verifier);
-	await session.set("pkce_state", state);
+	session.set("pkce_verifier", verifier);
+	session.set("pkce_state", state);
 
 	const params = new URLSearchParams({
 		client_id: SPOTIFY_CLIENT_ID,
