@@ -72,13 +72,9 @@ interface SpotifyPlayer {
 	activateElement(): Promise<void>;
 }
 
-declare global {
-	interface Window {
-		Spotify: {
-			Player: new (options: SpotifyPlayerOptions) => SpotifyPlayer;
-		};
-		onSpotifyWebPlaybackSDKReady: (() => void) | undefined;
-	}
+interface Window {
+	Spotify: {
+		Player: new (options: SpotifyPlayerOptions) => SpotifyPlayer;
+	};
+	onSpotifyWebPlaybackSDKReady: (() => void) | undefined;
 }
-
-export {};
