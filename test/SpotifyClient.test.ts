@@ -87,6 +87,7 @@ const makeMockSdk = (
 			initialize: Effect.void,
 			ensureDevice,
 			getDeviceState: Effect.succeed(Option.none()),
+			isDisconnected: Effect.succeed(false),
 			destroy: Effect.void,
 		}),
 	);
