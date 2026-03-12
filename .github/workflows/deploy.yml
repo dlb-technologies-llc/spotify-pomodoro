@@ -6,7 +6,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_BASE: ghcr.io/davidlbowman/spotify-pomodoro
+  IMAGE_BASE: ghcr.io/dlb-technologies-llc/spotify-pomodoro
 
 jobs:
   build-and-push:
