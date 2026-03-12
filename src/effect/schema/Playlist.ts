@@ -58,6 +58,7 @@ export class PlaybackState extends Schema.Class<PlaybackState>("PlaybackState")(
 		isPlaying: Schema.Boolean,
 		progressMs: Schema.NullOr(Schema.Number),
 		deviceId: Schema.NullOr(Schema.String),
+		deviceName: Schema.NullOr(Schema.String),
 		contextUri: Schema.NullOr(Schema.String),
 	},
 ) {}

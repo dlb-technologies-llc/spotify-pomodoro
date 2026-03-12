@@ -6,7 +6,7 @@
 
 import { HttpClient, HttpClientRequest } from "@effect/platform";
 import { Effect } from "effect";
-import { SpotifyApiError } from "../errors/SpotifyError";
+import { PremiumRequiredError, SpotifyApiError } from "../errors/SpotifyError";
 import {
 	PlaybackState,
 	Playlist,
@@ -14,6 +14,7 @@ import {
 	SpotifyImage,
 } from "../schema/Playlist";
 import { SpotifyAuth } from "./SpotifyAuth";
+import { WebPlaybackSdk } from "./WebPlaybackSdk";
 
 const SPOTIFY_API_BASE = "https://api.spotify.com/v1";
 
@@ -34,12 +35,13 @@ export class SpotifyClient extends Effect.Service<SpotifyClient>()(
 				HttpClient.withTracerPropagation(false),
 			);
 			const auth = yield* SpotifyAuth;
+			const sdk = yield* WebPlaybackSdk;
 			yield* Effect.logDebug("SpotifyClient initialized");
 
-			const authorizedFetch = <A>(
+			const authorizedFetch = <A, E = SpotifyApiError>(
 				makeRequest: (
 					token: string,
-				) => Effect.Effect<A, SpotifyApiError, never>,
+				) => Effect.Effect<A, E | SpotifyApiError, never>,
 			) =>
 				Effect.gen(function* () {
 					const token = yield* auth.getToken.pipe(
@@ -163,7 +165,7 @@ export class SpotifyClient extends Effect.Service<SpotifyClient>()(
 					const data = response as {
 						is_playing: boolean;
 						progress_ms: number | null;
-						device?: { id: string };
+						device?: { id: string; name: string };
 						context?: { uri: string };
 					};
 
@@ -175,6 +177,7 @@ export class SpotifyClient extends Effect.Service<SpotifyClient>()(
 						isPlaying: data.is_playing,
 						progressMs: data.progress_ms,
 						deviceId: data.device?.id ?? null,
+						deviceName: data.device?.name ?? null,
 						contextUri: data.context?.uri ?? null,
 					});
 				}),
@@ -211,7 +214,7 @@ export class SpotifyClient extends Effect.Service<SpotifyClient>()(
 							HttpClientRequest.bodyUnsafeJson(body),
 						);
 
-						yield* httpClient.execute(request).pipe(
+						const res = yield* httpClient.execute(request).pipe(
 							Effect.mapError(
 								() =>
 									new SpotifyApiError({
@@ -219,6 +222,75 @@ export class SpotifyClient extends Effect.Service<SpotifyClient>()(
 										message: "Failed to start playback",
 									}),
 							),
+						);
+
+						if (res.status >= 200 && res.status <= 204) {
+							return;
+						}
+
+						const responseText = yield* res.text.pipe(
+							Effect.mapError(
+								() =>
+									new SpotifyApiError({
+										status: res.status,
+										message: "Failed to read response body",
+									}),
+							),
+						);
+
+						if (
+							res.status === 404 &&
+							(responseText.includes("NO_ACTIVE_DEVICE") ||
+								responseText.includes("No active device"))
+						) {
+							yield* Effect.logInfo(
+								"No active device detected, attempting SDK fallback",
+							);
+
+							const sdkDeviceId = yield* sdk.ensureDevice;
+
+							yield* Effect.logInfo("SDK device ready, retrying playback").pipe(
+								Effect.annotateLogs("sdkDeviceId", sdkDeviceId),
+							);
+
+							const retryUrl = `${SPOTIFY_API_BASE}/me/player/play?device_id=${sdkDeviceId}`;
+							const retryRequest = HttpClientRequest.put(retryUrl).pipe(
+								HttpClientRequest.setHeader(
+									"Authorization",
+									`Bearer ${accessToken}`,
+								),
+								HttpClientRequest.bodyUnsafeJson(body),
+							);
+
+							yield* httpClient.execute(retryRequest).pipe(
+								Effect.mapError(
+									() =>
+										new SpotifyApiError({
+											status: 500,
+											message: "Failed to start playback after SDK fallback",
+										}),
+								),
+							);
+
+							return;
+						}
+
+						if (
+							res.status === 403 &&
+							responseText.includes("PREMIUM_REQUIRED")
+						) {
+							yield* Effect.fail(
+								new PremiumRequiredError({
+									message: "Spotify Premium is required for playback control",
+								}),
+							);
+						}
+
+						yield* Effect.fail(
+							new SpotifyApiError({
+								status: res.status,
+								message: `Playback request failed: ${responseText}`,
+							}),
 						);
 					}),
 				).pipe(Effect.withLogSpan("SpotifyClient.play"));
