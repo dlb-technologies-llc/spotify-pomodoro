@@ -82,8 +82,8 @@ export const GET: APIRoute = async ({ url, session, redirect }) => {
 			scope: string;
 		};
 
-		await session.delete("pkce_verifier");
-		await session.delete("pkce_state");
+		session.delete("pkce_verifier");
+		session.delete("pkce_state");
 
 		const token = {
 			accessToken: tokenData.access_token,

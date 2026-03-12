@@ -6,8 +6,10 @@ A self-hosted pomodoro timer with Spotify integration and a lofi aesthetic. Focu
 
 - Timer presets: Short (15/3), Classic (25/5), Long (50/10)
 - Overtime mode - timer counts up after completion, you decide when to switch
-- Session statistics - track your focus time, streaks, and overtime
-- Spotify integration with playlist selection
+- Stop button to end sessions without auto-transitioning to the next phase
+- Session statistics with contribution graph - track your focus time, streaks, and overtime
+- Spotify integration with playlist selection and Web Playback SDK (play directly in the browser without needing an external Spotify app)
+- Structured logging with configurable levels and format (pretty or JSON)
 - Light/dark theme toggle
 - Keyboard-first controls
 
@@ -20,7 +22,7 @@ A self-hosted pomodoro timer with Spotify integration and a lofi aesthetic. Focu
 3. Fill in the details:
    - **App name:** Spotify Pomodoro
    - **Redirect URI:** See setup options below
-   - **APIs used:** Check "Web API"
+   - **APIs used:** Check "Web API" and "Web Playback SDK"
 4. Copy the **Client ID** from your app's settings
 
 ### 2. Choose Your Setup
@@ -98,12 +100,13 @@ When enabled, all routes require login. The login page appears at `/login`.
 
 ## Keyboard Controls
 
-| Key               | Action                                       |
-| ----------------- | -------------------------------------------- |
-| `Space` / `Enter` | Start timer                                  |
-| `E`               | End current session early (during countdown) |
-| `S`               | Skip to next phase (during overtime)         |
-| `R`               | Reset timer (when stopped)                   |
+| Key               | Action                              |
+| ----------------- | ----------------------------------- |
+| `Space` / `Enter` | Start timer                         |
+| `E`               | End (stop) current session          |
+| `B`               | Skip to break (during focus)        |
+| `F`               | Skip to focus (during break)        |
+| `R`               | Reset timer (when stopped)          |
 
 ## Local Development
 
@@ -150,7 +153,7 @@ Ensure the redirect URI in your Spotify app settings exactly matches `PUBLIC_SPO
 
 ### "No active device"
 
-Spotify requires an active device to control playback. Open Spotify on your computer or phone before selecting a playlist.
+The app includes a built-in Web Playback SDK player, so playback works directly in the browser. If you see this error, make sure the browser tab has focus and try refreshing. Alternatively, open Spotify on your computer or phone to use it as the playback device.
 
 ### Container health check failing
 
