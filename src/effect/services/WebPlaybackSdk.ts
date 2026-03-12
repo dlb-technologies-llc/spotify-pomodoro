@@ -50,7 +50,10 @@ export class WebPlaybackSdk extends Effect.Service<WebPlaybackSdk>()(
 					onSome: ({ player }) =>
 						Effect.gen(function* () {
 							yield* Effect.logInfo("Destroying Web Playback SDK player");
-							yield* Effect.sync(() => player.disconnect());
+							yield* Effect.sync(() => {
+								player.removeListener("not_ready");
+								player.disconnect();
+							});
 							yield* Ref.set(stateRef, Option.none());
 							yield* Ref.set(disconnectedRef, false);
 						}),

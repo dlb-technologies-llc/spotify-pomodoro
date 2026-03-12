@@ -115,6 +115,8 @@ export function useSpotifyPlayback() {
 	const clearTabTookOver = useCallback(() => setTabTookOver(false), []);
 
 	const broadcastRef = useRef<BroadcastChannel | null>(null);
+	const deviceSourceRef = useRef(deviceSource);
+	deviceSourceRef.current = deviceSource;
 
 	const clearError = useCallback(() => setError(null), []);
 
@@ -123,7 +125,10 @@ export function useSpotifyPlayback() {
 		broadcastRef.current = channel;
 
 		channel.onmessage = (event: MessageEvent) => {
-			if (event.data?.type === "sdk-claimed" && deviceSource === "browser") {
+			if (
+				event.data?.type === "sdk-claimed" &&
+				deviceSourceRef.current === "browser"
+			) {
 				setTabTookOver(true);
 				setDeviceSource(null);
 			}
@@ -133,7 +138,7 @@ export function useSpotifyPlayback() {
 			channel.close();
 			broadcastRef.current = null;
 		};
-	}, [deviceSource]);
+	}, []);
 
 	const fetchPlaybackState = useCallback(async () => {
 		setIsLoading(true);
