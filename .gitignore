@@ -28,3 +28,9 @@ docs/
 
 # SQLite database
 data/
+
+# Playwright
+playwright-report/
+playwright/.auth/
+blob-report/
+test-results/
