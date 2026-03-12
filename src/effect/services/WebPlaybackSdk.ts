@@ -115,10 +115,12 @@ export class WebPlaybackSdk extends Effect.Service<WebPlaybackSdk>()(
 					string,
 					SdkUnavailableError | PremiumRequiredError
 				>((resume) => {
-					player.addListener("ready", ({ device_id }) =>
-						resume(Effect.succeed(device_id)),
-					);
-					player.addListener("not_ready", () =>
+					const onReady = ({ device_id }: { device_id: string }) => {
+						cleanup();
+						resume(Effect.succeed(device_id));
+					};
+					const onNotReady = () => {
+						cleanup();
 						resume(
 							Effect.fail(
 								new SdkUnavailableError({
@@ -126,9 +128,10 @@ export class WebPlaybackSdk extends Effect.Service<WebPlaybackSdk>()(
 									message: "Player device became not ready",
 								}),
 							),
-						),
-					);
-					player.addListener("initialization_error", ({ message }) =>
+						);
+					};
+					const onInitError = ({ message }: { message: string }) => {
+						cleanup();
 						resume(
 							Effect.fail(
 								new SdkUnavailableError({
@@ -136,9 +139,10 @@ export class WebPlaybackSdk extends Effect.Service<WebPlaybackSdk>()(
 									message,
 								}),
 							),
-						),
-					);
-					player.addListener("authentication_error", ({ message }) =>
+						);
+					};
+					const onAuthError = ({ message }: { message: string }) => {
+						cleanup();
 						resume(
 							Effect.fail(
 								new SdkUnavailableError({
@@ -146,11 +150,26 @@ export class WebPlaybackSdk extends Effect.Service<WebPlaybackSdk>()(
 									message,
 								}),
 							),
-						),
-					);
-					player.addListener("account_error", ({ message }) =>
-						resume(Effect.fail(new PremiumRequiredError({ message }))),
-					);
+						);
+					};
+					const onAccountError = ({ message }: { message: string }) => {
+						cleanup();
+						resume(Effect.fail(new PremiumRequiredError({ message })));
+					};
+
+					const cleanup = () => {
+						player.removeListener("ready", onReady);
+						player.removeListener("not_ready", onNotReady);
+						player.removeListener("initialization_error", onInitError);
+						player.removeListener("authentication_error", onAuthError);
+						player.removeListener("account_error", onAccountError);
+					};
+
+					player.addListener("ready", onReady);
+					player.addListener("not_ready", onNotReady);
+					player.addListener("initialization_error", onInitError);
+					player.addListener("authentication_error", onAuthError);
+					player.addListener("account_error", onAccountError);
 					player.connect();
 				});
 
