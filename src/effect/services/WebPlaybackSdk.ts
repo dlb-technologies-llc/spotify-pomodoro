@@ -55,8 +55,6 @@ export class WebPlaybackSdk extends Effect.Service<WebPlaybackSdk>()(
 				});
 			}).pipe(Effect.withLogSpan("WebPlaybackSdk.destroy"));
 
-			yield* Effect.addFinalizer(() => destroy);
-
 			const initialize: Effect.Effect<
 				void,
 				SdkUnavailableError | PremiumRequiredError

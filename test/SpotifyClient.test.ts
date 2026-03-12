@@ -46,6 +46,7 @@ const makeHttpClientLayer = (
 const MockSpotifyAuth = Layer.succeed(
 	SpotifyAuth,
 	SpotifyAuth.of({
+		_tag: "SpotifyAuth",
 		getToken: Effect.succeed(
 			new SpotifyToken({
 				accessToken: "test-access-token",
@@ -82,6 +83,7 @@ const makeMockSdk = (
 	Layer.succeed(
 		WebPlaybackSdk,
 		WebPlaybackSdk.of({
+			_tag: "WebPlaybackSdk",
 			initialize: Effect.void,
 			ensureDevice,
 			getDeviceState: Effect.succeed(Option.none()),

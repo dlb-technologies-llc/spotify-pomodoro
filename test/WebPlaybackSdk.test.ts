@@ -98,6 +98,7 @@ describe("WebPlaybackSdk", () => {
 		const MockWebPlaybackSdk = Layer.succeed(
 			WebPlaybackSdk,
 			WebPlaybackSdk.of({
+				_tag: "WebPlaybackSdk",
 				initialize: Effect.void,
 				ensureDevice: Effect.succeed(mockDeviceId),
 				getDeviceState: Effect.succeed(
@@ -144,6 +145,7 @@ describe("WebPlaybackSdk", () => {
 					Layer.succeed(
 						WebPlaybackSdk,
 						WebPlaybackSdk.of({
+							_tag: "WebPlaybackSdk",
 							initialize: Effect.fail(
 								new PremiumRequiredError({
 									message: "Premium required",
@@ -177,6 +179,7 @@ describe("WebPlaybackSdk", () => {
 					Layer.succeed(
 						WebPlaybackSdk,
 						WebPlaybackSdk.of({
+							_tag: "WebPlaybackSdk",
 							initialize: Effect.fail(
 								new SdkUnavailableError({
 									reason: "ScriptLoadFailed",

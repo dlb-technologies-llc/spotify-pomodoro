@@ -59,7 +59,23 @@ interface SpotifyPlayer {
 		callback: (error: WebPlaybackError) => void,
 	): void;
 	addListener(event: "autoplay_failed", callback: () => void): void;
-	removeListener(event: string, callback?: (...args: unknown[]) => void): void;
+	removeListener(
+		event: "ready" | "not_ready",
+		callback?: (data: { device_id: string }) => void,
+	): void;
+	removeListener(
+		event: "player_state_changed",
+		callback?: (state: WebPlaybackState | null) => void,
+	): void;
+	removeListener(
+		event:
+			| "initialization_error"
+			| "authentication_error"
+			| "account_error"
+			| "playback_error",
+		callback?: (error: WebPlaybackError) => void,
+	): void;
+	removeListener(event: string, callback?: (...args: never[]) => void): void;
 	getCurrentState(): Promise<WebPlaybackState | null>;
 	togglePlay(): Promise<void>;
 	pause(): Promise<void>;
