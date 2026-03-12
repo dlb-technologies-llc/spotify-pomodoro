@@ -165,7 +165,7 @@ export class SpotifyClient extends Effect.Service<SpotifyClient>()(
 					const data = response as {
 						is_playing: boolean;
 						progress_ms: number | null;
-						device?: { id: string };
+						device?: { id: string; name: string };
 						context?: { uri: string };
 					};
 
@@ -177,6 +177,7 @@ export class SpotifyClient extends Effect.Service<SpotifyClient>()(
 						isPlaying: data.is_playing,
 						progressMs: data.progress_ms,
 						deviceId: data.device?.id ?? null,
+						deviceName: data.device?.name ?? null,
 						contextUri: data.context?.uri ?? null,
 					});
 				}),

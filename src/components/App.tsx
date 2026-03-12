@@ -4,6 +4,7 @@
  * @module
  */
 
+import { Globe, Smartphone } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Playlist } from "../effect/schema/Playlist";
 import {
@@ -37,6 +38,7 @@ export function App() {
 		setRepeat,
 		error: playbackError,
 		clearError,
+		deviceSource,
 	} = useSpotifyPlayback();
 
 	const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(
@@ -362,6 +364,21 @@ export function App() {
 							</>
 						)}
 					</div>
+					{isAuthenticated && deviceSource && (
+						<div className="flex items-center gap-1.5 text-muted-foreground/30 text-xs mt-2">
+							{deviceSource === "browser" ? (
+								<>
+									<Globe className="w-3 h-3" />
+									<span>Browser</span>
+								</>
+							) : (
+								<>
+									<Smartphone className="w-3 h-3" />
+									<span>External device</span>
+								</>
+							)}
+						</div>
+					)}
 				</div>
 			</main>
 
