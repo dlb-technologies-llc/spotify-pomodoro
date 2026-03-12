@@ -37,13 +37,15 @@ const MOCK_PLAYLISTS = [
 	},
 ];
 
-const MOCK_TOKEN = {
-	accessToken: "mock-access-token-for-e2e-testing",
-	refreshToken: "mock-refresh-token",
-	expiresAt: Date.now() + 3600000,
-	scope:
-		"user-read-playback-state user-modify-playback-state playlist-read-private streaming",
-};
+function createMockToken() {
+	return {
+		accessToken: "mock-access-token-for-e2e-testing",
+		refreshToken: "mock-refresh-token",
+		expiresAt: Date.now() + 3600000,
+		scope:
+			"user-read-playback-state user-modify-playback-state playlist-read-private streaming",
+	};
+}
 
 interface SpotifyMock {
 	callCounts: {
@@ -157,7 +159,7 @@ async function setupSpotifyMock(page: Page): Promise<SpotifyMock> {
 			return route.fulfill({ status: 204 });
 		}
 
-		return route.continue();
+		return route.abort();
 	});
 
 	return mock;
@@ -175,13 +177,13 @@ export const test = base.extend<TestFixtures>({
 	},
 
 	spotifyConnectedPage: async ({ page, spotifyMock }, use) => {
-		const tokenPayload = JSON.stringify(MOCK_TOKEN);
+		const tokenPayload = JSON.stringify(createMockToken());
 		await page.addInitScript((token) => {
 			window.localStorage.setItem("spotify_token", token);
 		}, tokenPayload);
 
 		await page.goto("/");
-		await page.waitForLoadState("domcontentloaded");
+		await page.getByText("press space to start").waitFor();
 
 		await use({ page, mock: spotifyMock });
 	},
