@@ -10,8 +10,8 @@ const MOCK_PLAYLISTS = [
 		images: [
 			{ url: "https://via.placeholder.com/300", height: 300, width: 300 },
 		],
-		owner: { id: "user-1", displayName: "Test User" },
-		tracksTotal: 42,
+		owner: { id: "user-1", display_name: "Test User" },
+		tracks: { total: 42 },
 	},
 	{
 		id: "playlist-2",
@@ -21,8 +21,8 @@ const MOCK_PLAYLISTS = [
 		images: [
 			{ url: "https://via.placeholder.com/300", height: 300, width: 300 },
 		],
-		owner: { id: "user-1", displayName: "Test User" },
-		tracksTotal: 28,
+		owner: { id: "user-1", display_name: "Test User" },
+		tracks: { total: 28 },
 	},
 	{
 		id: "playlist-3",
@@ -32,8 +32,8 @@ const MOCK_PLAYLISTS = [
 		images: [
 			{ url: "https://via.placeholder.com/300", height: 300, width: 300 },
 		],
-		owner: { id: "user-1", displayName: "Test User" },
-		tracksTotal: 55,
+		owner: { id: "user-1", display_name: "Test User" },
+		tracks: { total: 55 },
 	},
 ];
 
@@ -184,6 +184,7 @@ export const test = base.extend<TestFixtures>({
 
 		await page.goto("/");
 		await page.getByText("press space to start").waitFor();
+		await page.getByRole("button", { name: /playlist/i }).waitFor();
 
 		await use({ page, mock: spotifyMock });
 	},

@@ -7,8 +7,9 @@ test.describe("Timer", () => {
 	});
 
 	test("displays idle state with default time", async ({ page }) => {
-		await expect(page.getByText("25")).toBeVisible();
-		await expect(page.getByText("00")).toBeVisible();
+		const timerDisplay = page.locator(".timer-display");
+		await expect(timerDisplay).toContainText("25");
+		await expect(timerDisplay).toContainText("00");
 		await expect(page.getByText("focus")).not.toBeVisible();
 		await expect(page.getByText("break")).not.toBeVisible();
 		await expect(page.getByText("press space to start")).toBeVisible();
@@ -82,16 +83,17 @@ test.describe("Timer", () => {
 	});
 
 	test("preset selector changes timer duration", async ({ page }) => {
-		await expect(page.getByText("25")).toBeVisible();
+		const timerDisplay = page.locator(".timer-display");
+		await expect(timerDisplay).toContainText("25");
 
 		await page.getByRole("button", { name: "Short" }).click();
-		await expect(page.getByText("15")).toBeVisible();
+		await expect(timerDisplay).toContainText("15");
 
 		await page.getByRole("button", { name: "Long" }).click();
-		await expect(page.getByText("50")).toBeVisible();
+		await expect(timerDisplay).toContainText("50");
 
 		await page.getByRole("button", { name: "Classic" }).click();
-		await expect(page.getByText("25")).toBeVisible();
+		await expect(timerDisplay).toContainText("25");
 	});
 
 	test("phase transitions update display labels", async ({ page }) => {
@@ -122,15 +124,16 @@ test.describe("Timer", () => {
 	test("break phase shows correct duration after preset change", async ({
 		page,
 	}) => {
+		const timerDisplay = page.locator(".timer-display");
 		await page.getByRole("button", { name: "Short" }).click();
-		await expect(page.getByText("15")).toBeVisible();
+		await expect(timerDisplay).toContainText("15");
 
 		await page.keyboard.press("Space");
 		await expect(page.getByText("focus")).toBeVisible();
 
 		await page.keyboard.press("b");
 		await expect(page.getByText("break")).toBeVisible();
-		await expect(page.getByText("03")).toBeVisible();
+		await expect(timerDisplay).toContainText("03");
 	});
 
 	test("keybinds are ignored when input is focused", async ({ page }) => {
