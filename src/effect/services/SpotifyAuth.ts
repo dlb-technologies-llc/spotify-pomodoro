@@ -4,8 +4,8 @@
  * @module
  */
 
-import { HttpClient, HttpClientRequest } from "@effect/platform";
-import { Effect, Option, Ref } from "effect";
+import { Effect, Layer, Option, Ref, ServiceMap } from "effect";
+import { HttpClient, HttpClientRequest } from "effect/unstable/http";
 import { SpotifyAuthError } from "../errors/SpotifyError";
 import { SpotifyToken } from "../schema/SpotifyToken";
 
@@ -20,128 +20,130 @@ const SPOTIFY_CLIENT_ID = import.meta.env.PUBLIC_SPOTIFY_CLIENT_ID;
  * @since 0.0.1
  * @category Services
  */
-export class SpotifyAuth extends Effect.Service<SpotifyAuth>()("SpotifyAuth", {
-	effect: Effect.gen(function* () {
-		yield* Effect.logDebug("SpotifyAuth initializing");
-		const httpClient = (yield* HttpClient.HttpClient).pipe(
-			HttpClient.withTracerPropagation(false),
-		);
-		const tokenRef = yield* Ref.make<Option.Option<SpotifyToken>>(
-			Option.none(),
-		);
-		yield* Effect.logDebug("SpotifyAuth initialized");
+export class SpotifyAuth extends ServiceMap.Service<SpotifyAuth>()(
+	"SpotifyAuth",
+	{
+		make: Effect.gen(function* () {
+			yield* Effect.logDebug("SpotifyAuth initializing");
+			const httpClient = yield* HttpClient.HttpClient;
+			const tokenRef = yield* Ref.make<Option.Option<SpotifyToken>>(
+				Option.none(),
+			);
+			yield* Effect.logDebug("SpotifyAuth initialized");
 
-		const getToken = Effect.gen(function* () {
-			yield* Effect.logDebug("Getting Spotify token");
-			const maybeToken = yield* Ref.get(tokenRef);
-			return yield* Option.match(maybeToken, {
-				onNone: () =>
-					Effect.fail(
-						new SpotifyAuthError({
-							reason: "NotAuthenticated",
-							message: "No token available",
-						}),
-					),
-				onSome: (token) => {
-					if (token.isExpired) {
-						return refreshToken;
-					}
-					return Effect.succeed(token);
-				},
-			});
-		});
-
-		const refreshToken: Effect.Effect<SpotifyToken, SpotifyAuthError> =
-			Effect.gen(function* () {
-				yield* Effect.logInfo("Refreshing Spotify token");
+			const getToken = Effect.gen(function* () {
+				yield* Effect.logDebug("Getting Spotify token");
 				const maybeToken = yield* Ref.get(tokenRef);
-				const currentToken = yield* Option.match(maybeToken, {
+				return yield* Option.match(maybeToken, {
 					onNone: () =>
 						Effect.fail(
 							new SpotifyAuthError({
 								reason: "NotAuthenticated",
-								message: "No token to refresh",
+								message: "No token available",
 							}),
 						),
-					onSome: Effect.succeed,
+					onSome: (token) => {
+						if (token.isExpired) {
+							return refreshToken;
+						}
+						return Effect.succeed(token);
+					},
 				});
+			});
 
-				const request = HttpClientRequest.post(
-					"https://accounts.spotify.com/api/token",
-				).pipe(
-					HttpClientRequest.setHeader(
-						"Content-Type",
-						"application/x-www-form-urlencoded",
-					),
-					HttpClientRequest.bodyUrlParams({
-						grant_type: "refresh_token",
-						refresh_token: currentToken.refreshToken,
-						client_id: SPOTIFY_CLIENT_ID,
-					}),
+			const refreshToken: Effect.Effect<SpotifyToken, SpotifyAuthError> =
+				Effect.gen(function* () {
+					yield* Effect.logInfo("Refreshing Spotify token");
+					const maybeToken = yield* Ref.get(tokenRef);
+					const currentToken = yield* Option.match(maybeToken, {
+						onNone: () =>
+							Effect.fail(
+								new SpotifyAuthError({
+									reason: "NotAuthenticated",
+									message: "No token to refresh",
+								}),
+							),
+						onSome: Effect.succeed,
+					});
+
+					const request = HttpClientRequest.post(
+						"https://accounts.spotify.com/api/token",
+					).pipe(
+						HttpClientRequest.setHeader(
+							"Content-Type",
+							"application/x-www-form-urlencoded",
+						),
+						HttpClientRequest.bodyUrlParams({
+							grant_type: "refresh_token",
+							refresh_token: currentToken.refreshToken,
+							client_id: SPOTIFY_CLIENT_ID,
+						}),
+					);
+
+					const response = yield* httpClient.execute(request).pipe(
+						Effect.flatMap((res) => res.json),
+						Effect.mapError(
+							() =>
+								new SpotifyAuthError({
+									reason: "TokenRefreshFailed",
+									message: "Failed to refresh token",
+								}),
+						),
+					);
+
+					const tokenData = response as {
+						access_token: string;
+						refresh_token?: string;
+						expires_in: number;
+						scope: string;
+					};
+
+					const newToken = new SpotifyToken({
+						accessToken: tokenData.access_token,
+						refreshToken: tokenData.refresh_token ?? currentToken.refreshToken,
+						expiresAt: Date.now() + tokenData.expires_in * 1000,
+						scope: tokenData.scope,
+					});
+
+					yield* Ref.set(tokenRef, Option.some(newToken));
+					yield* Effect.sync(() => {
+						localStorage.setItem("spotify_token", JSON.stringify(newToken));
+					});
+
+					yield* Effect.logInfo("Spotify token refreshed successfully");
+					return newToken;
+				}).pipe(Effect.withLogSpan("SpotifyAuth.refreshToken"));
+
+			const restoreToken = Effect.gen(function* () {
+				yield* Effect.logDebug("Restoring Spotify token from storage");
+				const stored = yield* Effect.sync(() =>
+					localStorage.getItem("spotify_token"),
 				);
+				if (stored) {
+					const parsed = JSON.parse(stored);
+					const token = new SpotifyToken(parsed);
+					yield* Ref.set(tokenRef, Option.some(token));
+					yield* Effect.logInfo("Spotify token restored from storage");
+					return Option.some(token);
+				}
+				yield* Effect.logDebug("No stored Spotify token found");
+				return Option.none();
+			});
 
-				const response = yield* httpClient.execute(request).pipe(
-					Effect.flatMap((res) => res.json),
-					Effect.mapError(
-						() =>
-							new SpotifyAuthError({
-								reason: "TokenRefreshFailed",
-								message: "Failed to refresh token",
-							}),
-					),
-				);
+			const logout = Effect.gen(function* () {
+				yield* Effect.logInfo("Logging out of Spotify");
+				yield* Ref.set(tokenRef, Option.none());
+				yield* Effect.sync(() => localStorage.removeItem("spotify_token"));
+			});
 
-				const tokenData = response as {
-					access_token: string;
-					refresh_token?: string;
-					expires_in: number;
-					scope: string;
-				};
-
-				const newToken = new SpotifyToken({
-					accessToken: tokenData.access_token,
-					refreshToken: tokenData.refresh_token ?? currentToken.refreshToken,
-					expiresAt: Date.now() + tokenData.expires_in * 1000,
-					scope: tokenData.scope,
-				});
-
-				yield* Ref.set(tokenRef, Option.some(newToken));
-				yield* Effect.sync(() => {
-					localStorage.setItem("spotify_token", JSON.stringify(newToken));
-				});
-
-				yield* Effect.logInfo("Spotify token refreshed successfully");
-				return newToken;
-			}).pipe(Effect.withLogSpan("SpotifyAuth.refreshToken"));
-
-		const restoreToken = Effect.gen(function* () {
-			yield* Effect.logDebug("Restoring Spotify token from storage");
-			const stored = yield* Effect.sync(() =>
-				localStorage.getItem("spotify_token"),
-			);
-			if (stored) {
-				const parsed = JSON.parse(stored);
-				const token = new SpotifyToken(parsed);
-				yield* Ref.set(tokenRef, Option.some(token));
-				yield* Effect.logInfo("Spotify token restored from storage");
-				return Option.some(token);
-			}
-			yield* Effect.logDebug("No stored Spotify token found");
-			return Option.none();
-		});
-
-		const logout = Effect.gen(function* () {
-			yield* Effect.logInfo("Logging out of Spotify");
-			yield* Ref.set(tokenRef, Option.none());
-			yield* Effect.sync(() => localStorage.removeItem("spotify_token"));
-		});
-
-		return {
-			getToken,
-			refreshToken,
-			restoreToken,
-			logout,
-		};
-	}),
-	accessors: true,
-}) {}
+			return {
+				getToken,
+				refreshToken,
+				restoreToken,
+				logout,
+			};
+		}),
+	},
+) {
+	static readonly layer = Layer.effect(this, this.make);
+}

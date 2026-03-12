@@ -4,7 +4,7 @@
  * @module
  */
 import { defineMiddleware } from "astro:middleware";
-import { Effect } from "effect";
+import { Effect, Result } from "effect";
 import { Auth, COOKIE_NAME } from "./effect/services/Auth";
 
 /**
@@ -41,7 +41,8 @@ function isPublicPath(pathname: string): boolean {
  */
 export const onRequest = defineMiddleware(async (context, next) => {
 	const program = Effect.gen(function* () {
-		const enabled = yield* Auth.isEnabled;
+		const auth = yield* Auth;
+		const enabled = yield* auth.isEnabled;
 		if (!enabled) return { authenticated: true, enabled: false };
 
 		const { pathname } = context.url;
@@ -50,11 +51,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		const cookie = context.cookies.get(COOKIE_NAME)?.value;
 		if (!cookie) return { authenticated: false, enabled: true };
 
-		const result = yield* Effect.either(Auth.verifyCookie(cookie));
-		if (result._tag === "Left") return { authenticated: false, enabled: true };
+		const result = yield* Effect.result(auth.verifyCookie(cookie));
+		if (Result.isFailure(result))
+			return { authenticated: false, enabled: true };
 
 		return { authenticated: true, enabled: true };
-	}).pipe(Effect.provide(Auth.Default));
+	}).pipe(Effect.provide(Auth.layer));
 
 	const { authenticated, enabled } = await Effect.runPromise(program);
 

@@ -11,7 +11,7 @@ import { Schema } from "effect";
  * @since 0.2.0
  * @category Errors
  */
-export class PomodoroNotFoundError extends Schema.TaggedError<PomodoroNotFoundError>()(
+export class PomodoroNotFoundError extends Schema.TaggedErrorClass<PomodoroNotFoundError>()(
 	"PomodoroNotFoundError",
 	{
 		pomodoroId: Schema.String,
@@ -24,7 +24,7 @@ export class PomodoroNotFoundError extends Schema.TaggedError<PomodoroNotFoundEr
  * @since 0.2.0
  * @category Errors
  */
-export class FocusSessionNotFoundError extends Schema.TaggedError<FocusSessionNotFoundError>()(
+export class FocusSessionNotFoundError extends Schema.TaggedErrorClass<FocusSessionNotFoundError>()(
 	"FocusSessionNotFoundError",
 	{
 		sessionId: Schema.String,
@@ -37,7 +37,7 @@ export class FocusSessionNotFoundError extends Schema.TaggedError<FocusSessionNo
  * @since 0.2.0
  * @category Errors
  */
-export class BreakSessionNotFoundError extends Schema.TaggedError<BreakSessionNotFoundError>()(
+export class BreakSessionNotFoundError extends Schema.TaggedErrorClass<BreakSessionNotFoundError>()(
 	"BreakSessionNotFoundError",
 	{
 		sessionId: Schema.String,
@@ -50,7 +50,7 @@ export class BreakSessionNotFoundError extends Schema.TaggedError<BreakSessionNo
  * @since 0.2.0
  * @category Errors
  */
-export class DatabaseError extends Schema.TaggedError<DatabaseError>()(
+export class DatabaseError extends Schema.TaggedErrorClass<DatabaseError>()(
 	"DatabaseError",
 	{
 		message: Schema.String,

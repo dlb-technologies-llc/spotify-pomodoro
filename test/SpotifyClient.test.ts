@@ -3,13 +3,14 @@
  *
  * @module
  */
+
+import { describe, expect, it } from "@effect/vitest";
+import { Effect, Layer, Option, Result } from "effect";
 import {
 	HttpClient,
 	type HttpClientRequest,
 	HttpClientResponse,
-} from "@effect/platform";
-import { describe, expect, it } from "@effect/vitest";
-import { Effect, Either, Layer, Option } from "effect";
+} from "effect/unstable/http";
 
 import {
 	PremiumRequiredError,
@@ -30,8 +31,7 @@ import { WebPlaybackSdk } from "@/effect/services/WebPlaybackSdk";
 const makeHttpClientLayer = (
 	handler: (request: HttpClientRequest.HttpClientRequest) => Response,
 ) =>
-	Layer.succeed(
-		HttpClient.HttpClient,
+	Layer.succeed(HttpClient.HttpClient)(
 		HttpClient.make((request) =>
 			Effect.succeed(HttpClientResponse.fromWeb(request, handler(request))),
 		),
@@ -43,10 +43,8 @@ const makeHttpClientLayer = (
  * @since 1.3.0
  * @category Test Utilities
  */
-const MockSpotifyAuth = Layer.succeed(
-	SpotifyAuth,
+const MockSpotifyAuth = Layer.succeed(SpotifyAuth)(
 	SpotifyAuth.of({
-		_tag: "SpotifyAuth",
 		getToken: Effect.succeed(
 			new SpotifyToken({
 				accessToken: "test-access-token",
@@ -80,10 +78,8 @@ const makeMockSdk = (
 		SdkUnavailableError | PremiumRequiredError
 	> = Effect.succeed("sdk-device-123"),
 ) =>
-	Layer.succeed(
-		WebPlaybackSdk,
+	Layer.succeed(WebPlaybackSdk)(
 		WebPlaybackSdk.of({
-			_tag: "WebPlaybackSdk",
 			initialize: Effect.void,
 			ensureDevice,
 			getDeviceState: Effect.succeed(Option.none()),
@@ -100,11 +96,14 @@ describe("SpotifyClient.play", () => {
 			);
 			const sdkLayer = makeMockSdk();
 
-			const layer = SpotifyClient.Default.pipe(
+			const layer = SpotifyClient.layer.pipe(
 				Layer.provide(Layer.mergeAll(httpLayer, MockSpotifyAuth, sdkLayer)),
 			);
 
-			yield* SpotifyClient.play().pipe(Effect.provide(layer));
+			yield* Effect.gen(function* () {
+				const client = yield* SpotifyClient;
+				yield* client.play();
+			}).pipe(Effect.provide(layer));
 		}),
 	);
 
@@ -131,11 +130,14 @@ describe("SpotifyClient.play", () => {
 
 			const sdkLayer = makeMockSdk(Effect.succeed("sdk-device-123"));
 
-			const layer = SpotifyClient.Default.pipe(
+			const layer = SpotifyClient.layer.pipe(
 				Layer.provide(Layer.mergeAll(httpLayer, MockSpotifyAuth, sdkLayer)),
 			);
 
-			yield* SpotifyClient.play().pipe(Effect.provide(layer));
+			yield* Effect.gen(function* () {
+				const client = yield* SpotifyClient;
+				yield* client.play();
+			}).pipe(Effect.provide(layer));
 			expect(requestCount).toBe(2);
 		}),
 	);
@@ -162,17 +164,20 @@ describe("SpotifyClient.play", () => {
 					),
 				);
 
-				const layer = SpotifyClient.Default.pipe(
+				const layer = SpotifyClient.layer.pipe(
 					Layer.provide(Layer.mergeAll(httpLayer, MockSpotifyAuth, sdkLayer)),
 				);
 
-				const result = yield* Effect.either(
-					SpotifyClient.play().pipe(Effect.provide(layer)),
+				const result = yield* Effect.result(
+					Effect.gen(function* () {
+						const client = yield* SpotifyClient;
+						yield* client.play();
+					}).pipe(Effect.provide(layer)),
 				);
 
-				expect(Either.isLeft(result)).toBe(true);
-				if (Either.isLeft(result)) {
-					expect(result.left).toBeInstanceOf(PremiumRequiredError);
+				expect(Result.isFailure(result)).toBe(true);
+				if (Result.isFailure(result)) {
+					expect(result.failure).toBeInstanceOf(PremiumRequiredError);
 				}
 			}),
 	);
@@ -198,17 +203,20 @@ describe("SpotifyClient.play", () => {
 				),
 			);
 
-			const layer = SpotifyClient.Default.pipe(
+			const layer = SpotifyClient.layer.pipe(
 				Layer.provide(Layer.mergeAll(httpLayer, MockSpotifyAuth, sdkLayer)),
 			);
 
-			const result = yield* Effect.either(
-				SpotifyClient.play().pipe(Effect.provide(layer)),
+			const result = yield* Effect.result(
+				Effect.gen(function* () {
+					const client = yield* SpotifyClient;
+					yield* client.play();
+				}).pipe(Effect.provide(layer)),
 			);
 
-			expect(Either.isLeft(result)).toBe(true);
-			if (Either.isLeft(result)) {
-				expect(result.left).toBeInstanceOf(SdkUnavailableError);
+			expect(Result.isFailure(result)).toBe(true);
+			if (Result.isFailure(result)) {
+				expect(result.failure).toBeInstanceOf(SdkUnavailableError);
 			}
 		}),
 	);
@@ -227,17 +235,20 @@ describe("SpotifyClient.play", () => {
 
 			const sdkLayer = makeMockSdk();
 
-			const layer = SpotifyClient.Default.pipe(
+			const layer = SpotifyClient.layer.pipe(
 				Layer.provide(Layer.mergeAll(httpLayer, MockSpotifyAuth, sdkLayer)),
 			);
 
-			const result = yield* Effect.either(
-				SpotifyClient.play().pipe(Effect.provide(layer)),
+			const result = yield* Effect.result(
+				Effect.gen(function* () {
+					const client = yield* SpotifyClient;
+					yield* client.play();
+				}).pipe(Effect.provide(layer)),
 			);
 
-			expect(Either.isLeft(result)).toBe(true);
-			if (Either.isLeft(result)) {
-				expect(result.left).toBeInstanceOf(PremiumRequiredError);
+			expect(Result.isFailure(result)).toBe(true);
+			if (Result.isFailure(result)) {
+				expect(result.failure).toBeInstanceOf(PremiumRequiredError);
 			}
 		}),
 	);
@@ -256,17 +267,20 @@ describe("SpotifyClient.play", () => {
 
 			const sdkLayer = makeMockSdk();
 
-			const layer = SpotifyClient.Default.pipe(
+			const layer = SpotifyClient.layer.pipe(
 				Layer.provide(Layer.mergeAll(httpLayer, MockSpotifyAuth, sdkLayer)),
 			);
 
-			const result = yield* Effect.either(
-				SpotifyClient.play().pipe(Effect.provide(layer)),
+			const result = yield* Effect.result(
+				Effect.gen(function* () {
+					const client = yield* SpotifyClient;
+					yield* client.play();
+				}).pipe(Effect.provide(layer)),
 			);
 
-			expect(Either.isLeft(result)).toBe(true);
-			if (Either.isLeft(result)) {
-				expect(result.left).toBeInstanceOf(SpotifyApiError);
+			expect(Result.isFailure(result)).toBe(true);
+			if (Result.isFailure(result)) {
+				expect(result.failure).toBeInstanceOf(SpotifyApiError);
 			}
 		}),
 	);

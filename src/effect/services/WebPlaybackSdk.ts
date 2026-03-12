@@ -4,7 +4,7 @@
  * @module
  */
 
-import { Effect, Option, Ref } from "effect";
+import { Effect, Layer, Option, Ref, ServiceMap } from "effect";
 import {
 	PremiumRequiredError,
 	SdkUnavailableError,
@@ -32,10 +32,10 @@ interface PlayerState {
  * @since 1.3.0
  * @category Services
  */
-export class WebPlaybackSdk extends Effect.Service<WebPlaybackSdk>()(
+export class WebPlaybackSdk extends ServiceMap.Service<WebPlaybackSdk>()(
 	"WebPlaybackSdk",
 	{
-		effect: Effect.gen(function* () {
+		make: Effect.gen(function* () {
 			yield* Effect.logDebug("WebPlaybackSdk initializing");
 			const auth = yield* SpotifyAuth;
 			const stateRef = yield* Ref.make<Option.Option<PlayerState>>(
@@ -76,7 +76,7 @@ export class WebPlaybackSdk extends Effect.Service<WebPlaybackSdk>()(
 
 				yield* Effect.logInfo("Loading Spotify Web Playback SDK script");
 
-				yield* Effect.async<void, SdkUnavailableError>((resume) => {
+				yield* Effect.callback<void, SdkUnavailableError>((resume) => {
 					if (window.Spotify) {
 						resume(Effect.void);
 						return;
@@ -116,7 +116,7 @@ export class WebPlaybackSdk extends Effect.Service<WebPlaybackSdk>()(
 					volume: 0.5,
 				});
 
-				const deviceId = yield* Effect.async<
+				const deviceId = yield* Effect.callback<
 					string,
 					SdkUnavailableError | PremiumRequiredError
 				>((resume) => {
@@ -249,6 +249,7 @@ export class WebPlaybackSdk extends Effect.Service<WebPlaybackSdk>()(
 				isDisconnected,
 			};
 		}),
-		accessors: true,
 	},
-) {}
+) {
+	static readonly layer = Layer.effect(this, this.make);
+}

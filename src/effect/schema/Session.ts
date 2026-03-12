@@ -3,7 +3,23 @@
  *
  * @module
  */
-import { Schema } from "effect";
+import { Schema, SchemaTransformation } from "effect";
+
+/**
+ * Transforms a number (epoch milliseconds) to a valid Date object.
+ *
+ * @since 0.4.0
+ * @category Schemas
+ */
+const DateFromNumber = Schema.Number.pipe(
+	Schema.decodeTo(
+		Schema.DateValid,
+		SchemaTransformation.transform({
+			decode: (n) => new globalThis.Date(n),
+			encode: (d) => d.getTime(),
+		}),
+	),
+);
 
 /**
  * Pomodoro record from database.
@@ -13,8 +29,8 @@ import { Schema } from "effect";
  */
 export class Pomodoro extends Schema.Class<Pomodoro>("Pomodoro")({
 	id: Schema.String,
-	createdAt: Schema.DateFromNumber,
-	completedAt: Schema.NullOr(Schema.DateFromNumber),
+	createdAt: DateFromNumber,
+	completedAt: Schema.NullOr(DateFromNumber),
 }) {}
 
 /**
@@ -28,10 +44,10 @@ export class FocusSession extends Schema.Class<FocusSession>("FocusSession")({
 	pomodoroId: Schema.String,
 	configuredSeconds: Schema.Number,
 	elapsedSeconds: Schema.Number,
-	startedAt: Schema.DateFromNumber,
-	completedAt: Schema.NullOr(Schema.DateFromNumber),
+	startedAt: DateFromNumber,
+	completedAt: Schema.NullOr(DateFromNumber),
 	completed: Schema.Boolean,
-	createdAt: Schema.DateFromNumber,
+	createdAt: DateFromNumber,
 }) {
 	/**
 	 * Overtime is derived: elapsed - configured (0 if no overtime).
@@ -53,10 +69,10 @@ export class BreakSession extends Schema.Class<BreakSession>("BreakSession")({
 	pomodoroId: Schema.String,
 	configuredSeconds: Schema.Number,
 	elapsedSeconds: Schema.Number,
-	startedAt: Schema.DateFromNumber,
-	completedAt: Schema.NullOr(Schema.DateFromNumber),
+	startedAt: DateFromNumber,
+	completedAt: Schema.NullOr(DateFromNumber),
 	completed: Schema.Boolean,
-	createdAt: Schema.DateFromNumber,
+	createdAt: DateFromNumber,
 }) {
 	/**
 	 * Overtime is derived: elapsed - configured (0 if no overtime).

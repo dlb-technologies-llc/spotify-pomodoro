@@ -4,7 +4,7 @@
  * @module
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { Effect } from "effect";
+import { Effect, Layer, ServiceMap } from "effect";
 import {
 	AuthConfigError,
 	InvalidAuthCookieError,
@@ -52,8 +52,8 @@ const AUTH_USERNAME = "admin";
  * @since 1.1.0
  * @category Services
  */
-export class Auth extends Effect.Service<Auth>()("Auth", {
-	effect: Effect.gen(function* () {
+export class Auth extends ServiceMap.Service<Auth>()("Auth", {
+	make: Effect.gen(function* () {
 		yield* Effect.logDebug("Auth service initializing");
 
 		/**
@@ -211,5 +211,6 @@ export class Auth extends Effect.Service<Auth>()("Auth", {
 			validateCredentials,
 		};
 	}),
-	accessors: true,
-}) {}
+}) {
+	static readonly layer = Layer.effect(this, this.make);
+}

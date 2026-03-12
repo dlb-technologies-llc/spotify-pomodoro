@@ -29,7 +29,10 @@ export const POST: APIRoute = async ({ params }) => {
 		);
 		const repo = yield* SessionRepository;
 		return yield* repo.completePomodoro(id);
-	}).pipe(Effect.provide(ServerLayer));
+	}).pipe(
+		Effect.withSpan("POST /api/pomodoros/:id/complete"),
+		Effect.provide(ServerLayer),
+	);
 
 	const result = await Effect.runPromise(program).catch((error) => ({
 		error: String(error),

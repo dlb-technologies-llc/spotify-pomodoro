@@ -101,48 +101,54 @@ const createPomodoro = (db: ReturnType<typeof drizzle>, completedAt: Date) =>
 		const breakStartedAt = focusCompletedAt;
 		const breakCompletedAt = completedAt;
 
-		yield* Effect.try(() =>
-			db
-				.insert(pomodoros)
-				.values({
-					id: pomodoroId,
-					createdAt,
-					completedAt,
-				})
-				.run(),
-		);
+		yield* Effect.try({
+			try: () =>
+				db
+					.insert(pomodoros)
+					.values({
+						id: pomodoroId,
+						createdAt,
+						completedAt,
+					})
+					.run(),
+			catch: (e) => e,
+		});
 
-		yield* Effect.try(() =>
-			db
-				.insert(focusSessions)
-				.values({
-					id: crypto.randomUUID(),
-					pomodoroId,
-					configuredSeconds: FOCUS_CONFIG.configuredSeconds,
-					elapsedSeconds: focusElapsed,
-					startedAt: focusStartedAt,
-					completedAt: focusCompletedAt,
-					completed: true,
-					createdAt: focusStartedAt,
-				})
-				.run(),
-		);
+		yield* Effect.try({
+			try: () =>
+				db
+					.insert(focusSessions)
+					.values({
+						id: crypto.randomUUID(),
+						pomodoroId,
+						configuredSeconds: FOCUS_CONFIG.configuredSeconds,
+						elapsedSeconds: focusElapsed,
+						startedAt: focusStartedAt,
+						completedAt: focusCompletedAt,
+						completed: true,
+						createdAt: focusStartedAt,
+					})
+					.run(),
+			catch: (e) => e,
+		});
 
-		yield* Effect.try(() =>
-			db
-				.insert(breakSessions)
-				.values({
-					id: crypto.randomUUID(),
-					pomodoroId,
-					configuredSeconds: BREAK_CONFIG.configuredSeconds,
-					elapsedSeconds: breakElapsed,
-					startedAt: breakStartedAt,
-					completedAt: breakCompletedAt,
-					completed: true,
-					createdAt: breakStartedAt,
-				})
-				.run(),
-		);
+		yield* Effect.try({
+			try: () =>
+				db
+					.insert(breakSessions)
+					.values({
+						id: crypto.randomUUID(),
+						pomodoroId,
+						configuredSeconds: BREAK_CONFIG.configuredSeconds,
+						elapsedSeconds: breakElapsed,
+						startedAt: breakStartedAt,
+						completedAt: breakCompletedAt,
+						completed: true,
+						createdAt: breakStartedAt,
+					})
+					.run(),
+			catch: (e) => e,
+		});
 	});
 
 /**
