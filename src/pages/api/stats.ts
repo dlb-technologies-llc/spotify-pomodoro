@@ -17,8 +17,8 @@ export const GET: APIRoute = async () => {
 	const program = Effect.gen(function* () {
 		yield* Effect.logDebug("GET /api/stats");
 		const repo = yield* SessionRepository;
-		return yield* repo.getStats;
-	}).pipe(Effect.provide(ServerLayer));
+		return yield* repo.getStats();
+	}).pipe(Effect.withSpan("GET /api/stats"), Effect.provide(ServerLayer));
 
 	const result = await Effect.runPromise(program).catch((error) => ({
 		error: String(error),

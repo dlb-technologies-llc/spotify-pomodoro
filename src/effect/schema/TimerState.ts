@@ -4,7 +4,7 @@
  * @module
  */
 
-import { Schema } from "effect";
+import { Schema, SchemaGetter } from "effect";
 
 /**
  * Timer phase: focus, break, or idle.
@@ -12,7 +12,7 @@ import { Schema } from "effect";
  * @since 0.0.1
  * @category Schemas
  */
-export const TimerPhase = Schema.Literal("focus", "break", "idle");
+export const TimerPhase = Schema.Literals(["focus", "break", "idle"]);
 
 /**
  * @since 0.0.1
@@ -26,7 +26,7 @@ export type TimerPhase = typeof TimerPhase.Type;
  * @since 0.0.1
  * @category Schemas
  */
-export const TimerStatus = Schema.Literal("running", "stopped");
+export const TimerStatus = Schema.Literals(["running", "stopped"]);
 
 /**
  * @since 0.0.1
@@ -40,7 +40,12 @@ export type TimerStatus = typeof TimerStatus.Type;
  * @since 0.2.0
  * @category Schemas
  */
-export const TimerPreset = Schema.Literal("classic", "long", "short", "custom");
+export const TimerPreset = Schema.Literals([
+	"classic",
+	"long",
+	"short",
+	"custom",
+]);
 
 /**
  * @since 0.2.0
@@ -60,7 +65,12 @@ export class TimerConfig extends Schema.Class<TimerConfig>("TimerConfig")({
 	/** Break duration in seconds */
 	breakDuration: Schema.Number,
 	/** Current preset name */
-	preset: Schema.optionalWith(TimerPreset, { default: () => "classic" }),
+	preset: Schema.optional(TimerPreset).pipe(
+		Schema.decodeTo(Schema.toType(TimerPreset), {
+			decode: SchemaGetter.withDefault((): TimerPreset => "classic"),
+			encode: SchemaGetter.required(),
+		}),
+	),
 }) {}
 
 /**
@@ -84,7 +94,12 @@ export class TimerState extends Schema.Class<TimerState>("TimerState")({
 	/** Current session ID in database */
 	currentSessionId: Schema.NullOr(Schema.String),
 	/** Total elapsed seconds since session started (for recording) */
-	elapsedSeconds: Schema.optionalWith(Schema.Number, { default: () => 0 }),
+	elapsedSeconds: Schema.optional(Schema.Number).pipe(
+		Schema.decodeTo(Schema.toType(Schema.Number), {
+			decode: SchemaGetter.withDefault(() => 0),
+			encode: SchemaGetter.required(),
+		}),
+	),
 }) {
 	/**
 	 * Whether timer is in overtime (past zero).

@@ -4,7 +4,7 @@
  * @module
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { Effect } from "effect";
+import { Effect, Layer, ServiceMap } from "effect";
 import {
 	AuthConfigError,
 	InvalidAuthCookieError,
@@ -52,14 +52,16 @@ const AUTH_USERNAME = "admin";
  * @since 1.1.0
  * @category Services
  */
-export class Auth extends Effect.Service<Auth>()("Auth", {
-	effect: Effect.gen(function* () {
+export class Auth extends ServiceMap.Service<Auth>()("Auth", {
+	make: Effect.gen(function* () {
 		yield* Effect.logDebug("Auth service initializing");
 
 		/**
 		 * Check if auth is enabled via environment variable.
 		 */
-		const isEnabled = Effect.sync(() => process.env.AUTH_ENABLED === "true");
+		const isEnabled = Effect.fn("Auth.isEnabled")(function* () {
+			return yield* Effect.sync(() => process.env.AUTH_ENABLED === "true");
+		});
 
 		yield* Effect.logDebug("Auth service initialized");
 
@@ -67,8 +69,8 @@ export class Auth extends Effect.Service<Auth>()("Auth", {
 		 * Get auth configuration from environment.
 		 * Fails if auth is enabled but config is missing.
 		 */
-		const getConfig = Effect.gen(function* () {
-			const enabled = yield* isEnabled;
+		const getConfig = Effect.fn("Auth.getConfig")(function* () {
+			const enabled = yield* isEnabled();
 			const password = process.env.AUTH_PASSWORD;
 			const secret = process.env.AUTH_SECRET;
 			const maxAge = Number(process.env.AUTH_COOKIE_MAX_AGE) || DEFAULT_MAX_AGE;
@@ -88,99 +90,101 @@ export class Auth extends Effect.Service<Auth>()("Auth", {
 		/**
 		 * Create a signed auth cookie value.
 		 */
-		const createCookie = (username: string) =>
-			Effect.gen(function* () {
-				yield* Effect.logDebug("Creating auth cookie").pipe(
-					Effect.annotateLogs("username", username),
-				);
-				const config = yield* getConfig;
-				const exp = Math.floor(Date.now() / 1000) + config.maxAge;
+		const createCookie = Effect.fn("Auth.createCookie")(function* (
+			username: string,
+		) {
+			yield* Effect.logDebug("Creating auth cookie").pipe(
+				Effect.annotateLogs("username", username),
+			);
+			const config = yield* getConfig();
+			const exp = Math.floor(Date.now() / 1000) + config.maxAge;
 
-				const payload = JSON.stringify({ username, exp });
-				const payloadB64 = Buffer.from(payload).toString("base64url");
+			const payload = JSON.stringify({ username, exp });
+			const payloadB64 = Buffer.from(payload).toString("base64url");
 
-				const signature = createHmac("sha256", config.secret as string)
-					.update(payload)
-					.digest("base64url");
+			const signature = createHmac("sha256", config.secret as string)
+				.update(payload)
+				.digest("base64url");
 
-				return `${payloadB64}.${signature}`;
-			});
+			return `${payloadB64}.${signature}`;
+		});
 
 		/**
 		 * Verify and decode an auth cookie.
 		 * Returns the payload if valid, fails if invalid/expired.
 		 */
-		const verifyCookie = (cookie: string) =>
-			Effect.gen(function* () {
-				yield* Effect.logDebug("Verifying auth cookie");
-				const config = yield* getConfig;
-				const parts = cookie.split(".");
+		const verifyCookie = Effect.fn("Auth.verifyCookie")(function* (
+			cookie: string,
+		) {
+			yield* Effect.logDebug("Verifying auth cookie");
+			const config = yield* getConfig();
+			const parts = cookie.split(".");
 
-				if (parts.length !== 2) {
-					return yield* Effect.fail(
-						new InvalidAuthCookieError({ reason: "malformed" }),
-					);
-				}
+			if (parts.length !== 2) {
+				return yield* Effect.fail(
+					new InvalidAuthCookieError({ reason: "malformed" }),
+				);
+			}
 
-				const [payloadB64, signature] = parts;
+			const [payloadB64, signature] = parts;
 
-				if (!payloadB64 || !signature) {
-					return yield* Effect.fail(
-						new InvalidAuthCookieError({ reason: "malformed" }),
-					);
-				}
+			if (!payloadB64 || !signature) {
+				return yield* Effect.fail(
+					new InvalidAuthCookieError({ reason: "malformed" }),
+				);
+			}
 
-				let payload: string;
-				try {
-					payload = Buffer.from(payloadB64, "base64url").toString();
-				} catch {
-					return yield* Effect.fail(
-						new InvalidAuthCookieError({ reason: "invalid encoding" }),
-					);
-				}
+			let payload: string;
+			try {
+				payload = Buffer.from(payloadB64, "base64url").toString();
+			} catch {
+				return yield* Effect.fail(
+					new InvalidAuthCookieError({ reason: "invalid encoding" }),
+				);
+			}
 
-				const expectedSig = createHmac("sha256", config.secret as string)
-					.update(payload)
-					.digest("base64url");
+			const expectedSig = createHmac("sha256", config.secret as string)
+				.update(payload)
+				.digest("base64url");
 
-				const sigBuffer = Buffer.from(signature);
-				const expectedBuffer = Buffer.from(expectedSig);
+			const sigBuffer = Buffer.from(signature);
+			const expectedBuffer = Buffer.from(expectedSig);
 
-				if (
-					sigBuffer.length !== expectedBuffer.length ||
-					!timingSafeEqual(sigBuffer, expectedBuffer)
-				) {
-					return yield* Effect.fail(
-						new InvalidAuthCookieError({ reason: "invalid signature" }),
-					);
-				}
+			if (
+				sigBuffer.length !== expectedBuffer.length ||
+				!timingSafeEqual(sigBuffer, expectedBuffer)
+			) {
+				return yield* Effect.fail(
+					new InvalidAuthCookieError({ reason: "invalid signature" }),
+				);
+			}
 
-				let data: AuthPayload;
-				try {
-					data = JSON.parse(payload) as AuthPayload;
-				} catch {
-					return yield* Effect.fail(
-						new InvalidAuthCookieError({ reason: "invalid payload" }),
-					);
-				}
+			let data: AuthPayload;
+			try {
+				data = JSON.parse(payload) as AuthPayload;
+			} catch {
+				return yield* Effect.fail(
+					new InvalidAuthCookieError({ reason: "invalid payload" }),
+				);
+			}
 
-				if (data.exp < Math.floor(Date.now() / 1000)) {
-					return yield* Effect.fail(
-						new InvalidAuthCookieError({ reason: "expired" }),
-					);
-				}
+			if (data.exp < Math.floor(Date.now() / 1000)) {
+				return yield* Effect.fail(
+					new InvalidAuthCookieError({ reason: "expired" }),
+				);
+			}
 
-				return data;
-			});
+			return data;
+		});
 
 		/**
 		 * Validate username and password against environment config.
 		 * Uses timing-safe comparison to prevent timing attacks.
 		 */
-		const validateCredentials = (username: string, password: string) =>
-			Effect.gen(function* () {
+		const validateCredentials = Effect.fn("Auth.validateCredentials")(
+			function* (username: string, password: string) {
 				yield* Effect.logDebug("Validating credentials");
-				const config = yield* getConfig;
+				const config = yield* getConfig();
 
 				const userBuffer = Buffer.from(username);
 				const expectedUserBuffer = Buffer.from(AUTH_USERNAME);
@@ -201,7 +205,8 @@ export class Auth extends Effect.Service<Auth>()("Auth", {
 
 				yield* Effect.logInfo("Credentials validated successfully");
 				return true;
-			});
+			},
+		);
 
 		return {
 			isEnabled,
@@ -211,5 +216,6 @@ export class Auth extends Effect.Service<Auth>()("Auth", {
 			validateCredentials,
 		};
 	}),
-	accessors: true,
-}) {}
+}) {
+	static readonly layer = Layer.effect(this, this.make);
+}

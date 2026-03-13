@@ -16,6 +16,8 @@ services:
       - AUTH_ENABLED=${AUTH_ENABLED:-false}
       - AUTH_PASSWORD=${AUTH_PASSWORD:-}
       - AUTH_SECRET=${AUTH_SECRET:-}
+      # Observability (optional)
+      - OTEL_COLLECTOR_URL=${OTEL_COLLECTOR_URL:-}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${PORT:-2500}/api/health"]

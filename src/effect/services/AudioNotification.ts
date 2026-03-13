@@ -4,7 +4,7 @@
  * @module
  */
 
-import { Effect, Option, Ref } from "effect";
+import { Effect, Layer, Option, Ref, ServiceMap } from "effect";
 
 /**
  * Audio notification service.
@@ -14,10 +14,10 @@ import { Effect, Option, Ref } from "effect";
  * @since 0.0.1
  * @category Services
  */
-export class AudioNotification extends Effect.Service<AudioNotification>()(
+export class AudioNotification extends ServiceMap.Service<AudioNotification>()(
 	"AudioNotification",
 	{
-		effect: Effect.gen(function* () {
+		make: Effect.gen(function* () {
 			yield* Effect.logDebug("AudioNotification service initializing");
 			const audioContextRef = yield* Ref.make<Option.Option<AudioContext>>(
 				Option.none(),
@@ -34,7 +34,7 @@ export class AudioNotification extends Effect.Service<AudioNotification>()(
 				return ctx;
 			});
 
-			const play = Effect.gen(function* () {
+			const play = Effect.fn("AudioNotification.play")(function* () {
 				yield* Effect.logDebug("Playing audio notification");
 				const ctx = yield* getOrCreateContext;
 				yield* Effect.sync(() => {
@@ -68,6 +68,7 @@ export class AudioNotification extends Effect.Service<AudioNotification>()(
 				play,
 			};
 		}),
-		accessors: true,
 	},
-) {}
+) {
+	static readonly layer = Layer.effect(this, this.make);
+}

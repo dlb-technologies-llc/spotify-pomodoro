@@ -4,7 +4,7 @@
  * @module
  */
 
-import { Effect, Stream, SubscriptionRef } from "effect";
+import { Effect, Fiber, Stream, SubscriptionRef } from "effect";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getRuntime, runEffect } from "../effect/runtime";
 import {
@@ -44,7 +44,7 @@ export function useTimer() {
 			const audio = yield* AudioNotification;
 
 			yield* timer.setOnTimerEnd(() => {
-				runEffect(audio.play);
+				runEffect(audio.play());
 			});
 
 			const initial = yield* SubscriptionRef.get(timer.state);
@@ -61,7 +61,7 @@ export function useTimer() {
 
 		return () => {
 			disposed = true;
-			runtime.runPromise(fiber.interruptAsFork(fiber.id()));
+			runtime.runFork(Fiber.interrupt(fiber));
 		};
 	}, []);
 
@@ -83,11 +83,21 @@ export function useTimer() {
 			}
 		}
 
-		await runEffect(Timer.start);
+		await runEffect(
+			Effect.gen(function* () {
+				const timer = yield* Timer;
+				yield* timer.start();
+			}),
+		);
 	}, [state]);
 
 	const reset = useCallback(async () => {
-		await runEffect(Timer.reset);
+		await runEffect(
+			Effect.gen(function* () {
+				const timer = yield* Timer;
+				yield* timer.reset();
+			}),
+		);
 	}, []);
 
 	const switchPhase = useCallback(
@@ -145,7 +155,12 @@ export function useTimer() {
 				}
 			}
 
-			await runEffect(Timer.switchPhase(options));
+			await runEffect(
+				Effect.gen(function* () {
+					const timer = yield* Timer;
+					yield* timer.switchPhase(options);
+				}),
+			);
 		},
 		[state],
 	);
@@ -203,7 +218,12 @@ export function useTimer() {
 				}
 			}
 
-			await runEffect(Timer.endSession(options));
+			await runEffect(
+				Effect.gen(function* () {
+					const timer = yield* Timer;
+					yield* timer.endSession(options);
+				}),
+			);
 		},
 		[state],
 	);
@@ -236,25 +256,39 @@ export function useTimer() {
 			dbPomodoroIdRef.current = null;
 		}
 
-		await runEffect(Timer.stop);
+		await runEffect(
+			Effect.gen(function* () {
+				const timer = yield* Timer;
+				yield* timer.stop();
+			}),
+		);
 	}, [state]);
 
 	const setConfig = useCallback(
 		(focusMinutes: number, breakMinutes: number) =>
 			runEffect(
-				Timer.setConfig(
-					new TimerConfig({
-						focusDuration: focusMinutes * 60,
-						breakDuration: breakMinutes * 60,
-						preset: "custom",
-					}),
-				),
+				Effect.gen(function* () {
+					const timer = yield* Timer;
+					yield* timer.setConfig(
+						new TimerConfig({
+							focusDuration: focusMinutes * 60,
+							breakDuration: breakMinutes * 60,
+							preset: "custom",
+						}),
+					);
+				}),
 			),
 		[],
 	);
 
 	const setPreset = useCallback(
-		(preset: TimerPreset) => runEffect(Timer.setPreset(preset)),
+		(preset: TimerPreset) =>
+			runEffect(
+				Effect.gen(function* () {
+					const timer = yield* Timer;
+					yield* timer.setPreset(preset);
+				}),
+			),
 		[],
 	);
 

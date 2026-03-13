@@ -46,7 +46,10 @@ export const POST: APIRoute = async ({ request }) => {
 		);
 		const repo = yield* SessionRepository;
 		return yield* repo.createBreakSession({ pomodoroId, configuredSeconds });
-	}).pipe(Effect.provide(ServerLayer));
+	}).pipe(
+		Effect.withSpan("POST /api/break-sessions"),
+		Effect.provide(ServerLayer),
+	);
 
 	const result = await Effect.runPromise(program).catch((error) => ({
 		error: String(error),

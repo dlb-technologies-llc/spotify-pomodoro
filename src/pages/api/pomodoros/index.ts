@@ -17,8 +17,8 @@ export const POST: APIRoute = async () => {
 	const program = Effect.gen(function* () {
 		yield* Effect.logDebug("POST /api/pomodoros");
 		const repo = yield* SessionRepository;
-		return yield* repo.createPomodoro;
-	}).pipe(Effect.provide(ServerLayer));
+		return yield* repo.createPomodoro();
+	}).pipe(Effect.withSpan("POST /api/pomodoros"), Effect.provide(ServerLayer));
 
 	const result = await Effect.runPromise(program).catch((error) => ({
 		error: String(error),
