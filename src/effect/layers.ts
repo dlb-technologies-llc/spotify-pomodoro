@@ -5,7 +5,7 @@
  */
 
 import { Layer } from "effect";
-import { FetchHttpClient } from "effect/unstable/http";
+import { FetchHttpClient, HttpClient } from "effect/unstable/http";
 import { FrontendTelemetryLayer } from "@/lib/telemetry";
 import { LoggingLayer } from "./logging";
 import { AudioNotification } from "./services/AudioNotification";
@@ -15,6 +15,18 @@ import { SpotifyClient } from "./services/SpotifyClient";
 import { TelemetryLive } from "./services/Telemetry";
 import { Timer } from "./services/Timer";
 import { WebPlaybackSdk } from "./services/WebPlaybackSdk";
+
+/**
+ * Disables trace propagation headers (b3, traceparent) on outgoing HTTP
+ * requests. Spotify's CORS policy rejects the b3 header in preflight,
+ * so browser-side Spotify API calls fail when telemetry is active.
+ *
+ * @since 1.5.0
+ * @category Layers
+ */
+const NoTracePropagation = Layer.succeed(HttpClient.TracerPropagationEnabled)(
+	false,
+);
 
 const SpotifyAuthLive = SpotifyAuth.layer.pipe(
 	Layer.provide(FetchHttpClient.layer),
@@ -44,6 +56,7 @@ export const MainLayer = Layer.mergeAll(
 	AudioNotification.layer,
 	LoggingLayer,
 	FrontendTelemetryLayer,
+	NoTracePropagation,
 );
 
 /**

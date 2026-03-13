@@ -7,6 +7,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer, Option, Result } from "effect";
 import {
+	FetchHttpClient,
 	HttpClient,
 	type HttpClientRequest,
 	HttpClientResponse,
@@ -283,6 +284,59 @@ describe("SpotifyClient.play", () => {
 			expect(Result.isFailure(result)).toBe(true);
 			if (Result.isFailure(result)) {
 				expect(result.failure).toBeInstanceOf(SpotifyApiError);
+			}
+		}),
+	);
+});
+
+/**
+ * Tests that trace propagation headers are stripped from outgoing Spotify API requests.
+ *
+ * @since 1.3.0
+ * @category Trace Propagation
+ */
+describe("SpotifyClient trace propagation", () => {
+	it.effect("does not send trace propagation headers to Spotify API", () =>
+		Effect.gen(function* () {
+			const capturedHeaders: Record<string, string> = {};
+			const originalFetch = globalThis.fetch;
+
+			const mockFetch = async (
+				_input: RequestInfo | URL,
+				init?: RequestInit,
+			) => {
+				const headers = new Headers(init?.headers);
+				headers.forEach((v, k) => {
+					capturedHeaders[k] = v;
+				});
+				return new Response(JSON.stringify({ items: [] }), { status: 200 });
+			};
+			Object.assign(mockFetch, { preconnect: (_url: string) => {} });
+			globalThis.fetch = mockFetch as typeof fetch;
+
+			try {
+				const layer = SpotifyClient.layer.pipe(
+					Layer.provide(
+						Layer.mergeAll(
+							FetchHttpClient.layer,
+							MockSpotifyAuth,
+							makeMockSdk(),
+						),
+					),
+				);
+
+				yield* Effect.gen(function* () {
+					const client = yield* SpotifyClient;
+					yield* client.getPlaylists();
+				}).pipe(
+					Effect.provideService(HttpClient.TracerPropagationEnabled, false),
+					Effect.provide(layer),
+				);
+
+				expect(capturedHeaders).not.toHaveProperty("b3");
+				expect(capturedHeaders).not.toHaveProperty("traceparent");
+			} finally {
+				globalThis.fetch = originalFetch;
 			}
 		}),
 	);
