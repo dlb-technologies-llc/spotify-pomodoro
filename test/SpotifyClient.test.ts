@@ -45,24 +45,26 @@ const makeHttpClientLayer = (
  */
 const MockSpotifyAuth = Layer.succeed(SpotifyAuth)(
 	SpotifyAuth.of({
-		getToken: Effect.succeed(
-			new SpotifyToken({
-				accessToken: "test-access-token",
-				refreshToken: "test-refresh-token",
-				expiresAt: Date.now() + 3600_000,
-				scope: "streaming user-read-playback-state",
-			}),
-		),
-		refreshToken: Effect.succeed(
-			new SpotifyToken({
-				accessToken: "test-access-token",
-				refreshToken: "test-refresh-token",
-				expiresAt: Date.now() + 3600_000,
-				scope: "streaming user-read-playback-state",
-			}),
-		),
-		restoreToken: Effect.succeed(Option.none()),
-		logout: Effect.void,
+		getToken: () =>
+			Effect.succeed(
+				new SpotifyToken({
+					accessToken: "test-access-token",
+					refreshToken: "test-refresh-token",
+					expiresAt: Date.now() + 3600_000,
+					scope: "streaming user-read-playback-state",
+				}),
+			),
+		refreshToken: () =>
+			Effect.succeed(
+				new SpotifyToken({
+					accessToken: "test-access-token",
+					refreshToken: "test-refresh-token",
+					expiresAt: Date.now() + 3600_000,
+					scope: "streaming user-read-playback-state",
+				}),
+			),
+		restoreToken: () => Effect.succeed(Option.none()),
+		logout: () => Effect.void,
 	}),
 );
 
@@ -73,18 +75,18 @@ const MockSpotifyAuth = Layer.succeed(SpotifyAuth)(
  * @category Test Utilities
  */
 const makeMockSdk = (
-	ensureDevice: Effect.Effect<
+	ensureDevice: () => Effect.Effect<
 		string,
 		SdkUnavailableError | PremiumRequiredError
-	> = Effect.succeed("sdk-device-123"),
+	> = () => Effect.succeed("sdk-device-123"),
 ) =>
 	Layer.succeed(WebPlaybackSdk)(
 		WebPlaybackSdk.of({
-			initialize: Effect.void,
+			initialize: () => Effect.void,
 			ensureDevice,
-			getDeviceState: Effect.succeed(Option.none()),
-			isDisconnected: Effect.succeed(false),
-			destroy: Effect.void,
+			getDeviceState: () => Effect.succeed(Option.none()),
+			isDisconnected: () => Effect.succeed(false),
+			destroy: () => Effect.void,
 		}),
 	);
 
@@ -128,7 +130,7 @@ describe("SpotifyClient.play", () => {
 				return new Response(null, { status: 204 });
 			});
 
-			const sdkLayer = makeMockSdk(Effect.succeed("sdk-device-123"));
+			const sdkLayer = makeMockSdk(() => Effect.succeed("sdk-device-123"));
 
 			const layer = SpotifyClient.layer.pipe(
 				Layer.provide(Layer.mergeAll(httpLayer, MockSpotifyAuth, sdkLayer)),
@@ -156,7 +158,7 @@ describe("SpotifyClient.play", () => {
 						),
 				);
 
-				const sdkLayer = makeMockSdk(
+				const sdkLayer = makeMockSdk(() =>
 					Effect.fail(
 						new PremiumRequiredError({
 							message: "Premium required for playback",
@@ -194,7 +196,7 @@ describe("SpotifyClient.play", () => {
 					),
 			);
 
-			const sdkLayer = makeMockSdk(
+			const sdkLayer = makeMockSdk(() =>
 				Effect.fail(
 					new SdkUnavailableError({
 						reason: "ScriptLoadFailed",

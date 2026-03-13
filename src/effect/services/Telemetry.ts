@@ -29,7 +29,7 @@ export const TelemetryLive = Otlp.layerJson({
 		process.env.OTEL_COLLECTOR_URL ||
 		"http://localhost:4318",
 	resource: {
-		serviceName: "spotify-pomodoro",
+		serviceName: "spotify-pomodoro-backend",
 		serviceVersion: pkg.version,
 		attributes: {
 			"deployment.environment": import.meta.env.DEV

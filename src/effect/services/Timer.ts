@@ -135,11 +135,13 @@ export class Timer extends ServiceMap.Service<Timer>()("Timer", {
 			yield* Ref.set(intervalRef, Option.none());
 		});
 
-		const start = Effect.gen(function* () {
+		const start = Effect.fn("Timer.start")(function* () {
 			const state = yield* SubscriptionRef.get(stateRef);
 
 			if (state.phase === "idle") {
 				const pomodoroId = crypto.randomUUID();
+				yield* Effect.annotateCurrentSpan("timer.phase", "focus");
+				yield* Effect.annotateCurrentSpan("pomodoroId", pomodoroId);
 				yield* Effect.logInfo("Starting new pomodoro").pipe(
 					Effect.annotateLogs("pomodoroId", pomodoroId),
 				);
@@ -169,7 +171,7 @@ export class Timer extends ServiceMap.Service<Timer>()("Timer", {
 			yield* startTicking;
 		});
 
-		const reset = Effect.gen(function* () {
+		const reset = Effect.fn("Timer.reset")(function* () {
 			yield* Effect.logDebug("Resetting timer");
 			yield* stopTicking;
 			const state = yield* SubscriptionRef.get(stateRef);
@@ -189,87 +191,92 @@ export class Timer extends ServiceMap.Service<Timer>()("Timer", {
 			);
 		});
 
-		const switchPhase = (options?: { autoStart?: boolean }) =>
-			Effect.gen(function* () {
-				yield* stopTicking;
-				const state = yield* SubscriptionRef.get(stateRef);
-				const newPhase: TimerPhase =
-					state.phase === "focus" ? "break" : "focus";
-				const duration =
-					newPhase === "focus"
-						? state.config.focusDuration
-						: state.config.breakDuration;
+		const switchPhase = Effect.fn("Timer.switchPhase")(function* (options?: {
+			autoStart?: boolean;
+		}) {
+			yield* stopTicking;
+			const state = yield* SubscriptionRef.get(stateRef);
+			const newPhase: TimerPhase = state.phase === "focus" ? "break" : "focus";
+			yield* Effect.annotateCurrentSpan({
+				"timer.fromPhase": state.phase,
+				"timer.toPhase": newPhase,
+			});
+			const duration =
+				newPhase === "focus"
+					? state.config.focusDuration
+					: state.config.breakDuration;
 
-				const newSessionCount =
-					state.phase === "focus" ? state.sessionCount + 1 : state.sessionCount;
+			const newSessionCount =
+				state.phase === "focus" ? state.sessionCount + 1 : state.sessionCount;
 
-				const newPomodoroId =
-					newPhase === "focus" ? crypto.randomUUID() : state.currentPomodoroId;
+			const newPomodoroId =
+				newPhase === "focus" ? crypto.randomUUID() : state.currentPomodoroId;
 
-				const shouldAutoStart = options?.autoStart ?? false;
+			const shouldAutoStart = options?.autoStart ?? false;
 
-				yield* Effect.logInfo("Switching phase").pipe(
-					Effect.annotateLogs({
-						fromPhase: state.phase,
-						toPhase: newPhase,
-						autoStart: String(shouldAutoStart),
-					}),
-				);
+			yield* Effect.logInfo("Switching phase").pipe(
+				Effect.annotateLogs({
+					fromPhase: state.phase,
+					toPhase: newPhase,
+					autoStart: String(shouldAutoStart),
+				}),
+			);
 
+			yield* SubscriptionRef.set(
+				stateRef,
+				new TimerState({
+					...state,
+					phase: newPhase,
+					status: shouldAutoStart ? "running" : "stopped",
+					remainingSeconds: duration,
+					overtime: 0,
+					sessionCount: newSessionCount,
+					currentPomodoroId: newPomodoroId,
+					currentSessionId: null,
+					elapsedSeconds: 0,
+				}),
+			);
+
+			if (shouldAutoStart) {
+				yield* startTicking;
+			}
+		});
+
+		const endSession = Effect.fn("Timer.endSession")(function* (options?: {
+			switchToNext?: boolean;
+		}) {
+			yield* stopTicking;
+			const state = yield* SubscriptionRef.get(stateRef);
+
+			yield* Effect.logInfo("Ending session").pipe(
+				Effect.annotateLogs({
+					phase: state.phase,
+					switchToNext: String(options?.switchToNext ?? false),
+				}),
+			);
+
+			const newSessionCount =
+				state.phase === "focus" ? state.sessionCount + 1 : state.sessionCount;
+
+			if (options?.switchToNext) {
+				yield* switchPhase({ autoStart: true });
+			} else {
 				yield* SubscriptionRef.set(
 					stateRef,
 					new TimerState({
 						...state,
-						phase: newPhase,
-						status: shouldAutoStart ? "running" : "stopped",
-						remainingSeconds: duration,
-						overtime: 0,
+						status: "stopped",
 						sessionCount: newSessionCount,
-						currentPomodoroId: newPomodoroId,
-						currentSessionId: null,
-						elapsedSeconds: 0,
 					}),
 				);
+			}
+		});
 
-				if (shouldAutoStart) {
-					yield* startTicking;
-				}
-			});
-
-		const endSession = (options?: { switchToNext?: boolean }) =>
-			Effect.gen(function* () {
-				yield* stopTicking;
-				const state = yield* SubscriptionRef.get(stateRef);
-
-				yield* Effect.logInfo("Ending session").pipe(
-					Effect.annotateLogs({
-						phase: state.phase,
-						switchToNext: String(options?.switchToNext ?? false),
-					}),
-				);
-
-				const newSessionCount =
-					state.phase === "focus" ? state.sessionCount + 1 : state.sessionCount;
-
-				if (options?.switchToNext) {
-					yield* switchPhase({ autoStart: true });
-				} else {
-					yield* SubscriptionRef.set(
-						stateRef,
-						new TimerState({
-							...state,
-							status: "stopped",
-							sessionCount: newSessionCount,
-						}),
-					);
-				}
-			});
-
-		const skip = Effect.gen(function* () {
+		const skip = Effect.fn("Timer.skip")(function* () {
 			yield* switchPhase({ autoStart: true });
 		});
 
-		const stop = Effect.gen(function* () {
+		const stop = Effect.fn("Timer.stop")(function* () {
 			yield* Effect.logInfo("Stopping timer and returning to idle");
 			yield* stopTicking;
 			const state = yield* SubscriptionRef.get(stateRef);
@@ -289,45 +296,48 @@ export class Timer extends ServiceMap.Service<Timer>()("Timer", {
 			);
 		});
 
-		const setConfig = (config: TimerConfig) =>
-			Effect.gen(function* () {
-				yield* Effect.logDebug("Updating timer config").pipe(
-					Effect.annotateLogs({
-						focusDuration: String(config.focusDuration),
-						breakDuration: String(config.breakDuration),
+		const setConfig = Effect.fn("Timer.setConfig")(function* (
+			config: TimerConfig,
+		) {
+			yield* Effect.logDebug("Updating timer config").pipe(
+				Effect.annotateLogs({
+					focusDuration: String(config.focusDuration),
+					breakDuration: String(config.breakDuration),
+				}),
+			);
+			const state = yield* SubscriptionRef.get(stateRef);
+			const duration =
+				state.phase === "focus" || state.phase === "idle"
+					? config.focusDuration
+					: config.breakDuration;
+
+			yield* SubscriptionRef.update(
+				stateRef,
+				(s) =>
+					new TimerState({
+						...s,
+						config,
+						remainingSeconds:
+							s.status === "stopped" ? duration : s.remainingSeconds,
 					}),
-				);
-				const state = yield* SubscriptionRef.get(stateRef);
-				const duration =
-					state.phase === "focus" || state.phase === "idle"
-						? config.focusDuration
-						: config.breakDuration;
+			);
+		});
 
-				yield* SubscriptionRef.update(
-					stateRef,
-					(s) =>
-						new TimerState({
-							...s,
-							config,
-							remainingSeconds:
-								s.status === "stopped" ? duration : s.remainingSeconds,
-						}),
-				);
+		const setPreset = Effect.fn("Timer.setPreset")(function* (
+			preset: TimerPreset,
+		) {
+			yield* Effect.annotateCurrentSpan("timer.preset", preset);
+			yield* Effect.logInfo("Setting timer preset").pipe(
+				Effect.annotateLogs("preset", preset),
+			);
+			const { focus, break: breakDuration } = TIMER_PRESETS[preset];
+			const config = new TimerConfig({
+				focusDuration: focus,
+				breakDuration: breakDuration,
+				preset,
 			});
-
-		const setPreset = (preset: TimerPreset) =>
-			Effect.gen(function* () {
-				yield* Effect.logInfo("Setting timer preset").pipe(
-					Effect.annotateLogs("preset", preset),
-				);
-				const { focus, break: breakDuration } = TIMER_PRESETS[preset];
-				const config = new TimerConfig({
-					focusDuration: focus,
-					breakDuration: breakDuration,
-					preset,
-				});
-				yield* setConfig(config);
-			});
+			yield* setConfig(config);
+		});
 
 		const setOnTimerEnd = (callback: () => void) =>
 			Ref.set(onTimerEndRef, Option.some(callback));

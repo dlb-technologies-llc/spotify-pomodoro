@@ -38,7 +38,7 @@ export function useSpotifyAuth() {
 		runEffect(
 			Effect.gen(function* () {
 				const auth = yield* SpotifyAuth;
-				return yield* auth.restoreToken;
+				return yield* auth.restoreToken();
 			}),
 		)
 			.then((maybeToken) => {
@@ -58,7 +58,7 @@ export function useSpotifyAuth() {
 		await runEffect(
 			Effect.gen(function* () {
 				const auth = yield* SpotifyAuth;
-				yield* auth.logout;
+				yield* auth.logout();
 			}),
 		);
 		setIsAuthenticated(false);
@@ -90,7 +90,7 @@ export function useSpotifyPlaylists() {
 			const result = await runEffect(
 				Effect.gen(function* () {
 					const client = yield* SpotifyClient;
-					return yield* client.getPlaylists;
+					return yield* client.getPlaylists();
 				}),
 			);
 			setPlaylists(result as Playlist[]);
@@ -161,7 +161,7 @@ export function useSpotifyPlayback() {
 			const result = (await runEffect(
 				Effect.gen(function* () {
 					const client = yield* SpotifyClient;
-					return yield* client.getPlaybackState;
+					return yield* client.getPlaybackState();
 				}),
 			)) as PlaybackState | null;
 			setPlaybackState(result);
@@ -226,7 +226,7 @@ export function useSpotifyPlayback() {
 		await runEffect(
 			Effect.gen(function* () {
 				const client = yield* SpotifyClient;
-				return yield* client.pause;
+				return yield* client.pause();
 			}),
 		);
 		await fetchPlaybackState();

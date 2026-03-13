@@ -47,7 +47,7 @@ describe("Timer Service", () => {
 		it.effect("transitions from idle to focus phase", () =>
 			Effect.gen(function* () {
 				const timer = yield* Timer;
-				yield* timer.start;
+				yield* timer.start();
 				const state = yield* SubscriptionRef.get(timer.state);
 				expect(state.phase).toBe("focus");
 			}).pipe(Effect.provide(Timer.layer)),
@@ -56,7 +56,7 @@ describe("Timer Service", () => {
 		it.effect("sets status to running", () =>
 			Effect.gen(function* () {
 				const timer = yield* Timer;
-				yield* timer.start;
+				yield* timer.start();
 				const state = yield* SubscriptionRef.get(timer.state);
 				expect(state.status).toBe("running");
 			}).pipe(Effect.provide(Timer.layer)),
@@ -65,7 +65,7 @@ describe("Timer Service", () => {
 		it.effect("generates a pomodoro ID", () =>
 			Effect.gen(function* () {
 				const timer = yield* Timer;
-				yield* timer.start;
+				yield* timer.start();
 				const state = yield* SubscriptionRef.get(timer.state);
 				expect(state.currentPomodoroId).not.toBeNull();
 				expect(typeof state.currentPomodoroId).toBe("string");
@@ -75,7 +75,7 @@ describe("Timer Service", () => {
 		it.effect("sets remaining seconds to focus duration", () =>
 			Effect.gen(function* () {
 				const timer = yield* Timer;
-				yield* timer.start;
+				yield* timer.start();
 				const state = yield* SubscriptionRef.get(timer.state);
 				expect(state.remainingSeconds).toBe(state.config.focusDuration);
 			}).pipe(Effect.provide(Timer.layer)),
@@ -86,8 +86,8 @@ describe("Timer Service", () => {
 		it.effect("sets status to stopped", () =>
 			Effect.gen(function* () {
 				const timer = yield* Timer;
-				yield* timer.start;
-				yield* timer.reset;
+				yield* timer.start();
+				yield* timer.reset();
 				const state = yield* SubscriptionRef.get(timer.state);
 				expect(state.status).toBe("stopped");
 			}).pipe(Effect.provide(Timer.layer)),
@@ -96,8 +96,8 @@ describe("Timer Service", () => {
 		it.effect("resets remaining seconds to configured duration", () =>
 			Effect.gen(function* () {
 				const timer = yield* Timer;
-				yield* timer.start;
-				yield* timer.reset;
+				yield* timer.start();
+				yield* timer.reset();
 				const state = yield* SubscriptionRef.get(timer.state);
 				expect(state.remainingSeconds).toBe(state.config.focusDuration);
 			}).pipe(Effect.provide(Timer.layer)),
@@ -106,8 +106,8 @@ describe("Timer Service", () => {
 		it.effect("clears overtime", () =>
 			Effect.gen(function* () {
 				const timer = yield* Timer;
-				yield* timer.start;
-				yield* timer.reset;
+				yield* timer.start();
+				yield* timer.reset();
 				const state = yield* SubscriptionRef.get(timer.state);
 				expect(state.overtime).toBe(0);
 			}).pipe(Effect.provide(Timer.layer)),
@@ -118,7 +118,7 @@ describe("Timer Service", () => {
 		it.effect("switches from focus to break", () =>
 			Effect.gen(function* () {
 				const timer = yield* Timer;
-				yield* timer.start;
+				yield* timer.start();
 				yield* timer.switchPhase();
 				const state = yield* SubscriptionRef.get(timer.state);
 				expect(state.phase).toBe("break");
@@ -128,7 +128,7 @@ describe("Timer Service", () => {
 		it.effect("switches from break to focus", () =>
 			Effect.gen(function* () {
 				const timer = yield* Timer;
-				yield* timer.start;
+				yield* timer.start();
 				yield* timer.switchPhase();
 				yield* timer.switchPhase();
 				const state = yield* SubscriptionRef.get(timer.state);
@@ -139,7 +139,7 @@ describe("Timer Service", () => {
 		it.effect("increments session count when leaving focus", () =>
 			Effect.gen(function* () {
 				const timer = yield* Timer;
-				yield* timer.start;
+				yield* timer.start();
 				const beforeState = yield* SubscriptionRef.get(timer.state);
 				yield* timer.switchPhase();
 				const afterState = yield* SubscriptionRef.get(timer.state);
@@ -150,7 +150,7 @@ describe("Timer Service", () => {
 		it.effect("does not increment session count when leaving break", () =>
 			Effect.gen(function* () {
 				const timer = yield* Timer;
-				yield* timer.start;
+				yield* timer.start();
 				yield* timer.switchPhase();
 				const beforeState = yield* SubscriptionRef.get(timer.state);
 				yield* timer.switchPhase();
@@ -162,7 +162,7 @@ describe("Timer Service", () => {
 		it.effect("auto-starts when autoStart option is true", () =>
 			Effect.gen(function* () {
 				const timer = yield* Timer;
-				yield* timer.start;
+				yield* timer.start();
 				yield* timer.switchPhase({ autoStart: true });
 				const state = yield* SubscriptionRef.get(timer.state);
 				expect(state.status).toBe("running");
@@ -172,7 +172,7 @@ describe("Timer Service", () => {
 		it.effect("stops when autoStart option is false", () =>
 			Effect.gen(function* () {
 				const timer = yield* Timer;
-				yield* timer.start;
+				yield* timer.start();
 				yield* timer.switchPhase({ autoStart: false });
 				const state = yield* SubscriptionRef.get(timer.state);
 				expect(state.status).toBe("stopped");
@@ -182,7 +182,7 @@ describe("Timer Service", () => {
 		it.effect("generates new pomodoro ID when switching to focus", () =>
 			Effect.gen(function* () {
 				const timer = yield* Timer;
-				yield* timer.start;
+				yield* timer.start();
 				const firstPomodoroId = (yield* SubscriptionRef.get(timer.state))
 					.currentPomodoroId;
 				yield* timer.switchPhase();
@@ -196,7 +196,7 @@ describe("Timer Service", () => {
 		it.effect("preserves pomodoro ID when switching to break", () =>
 			Effect.gen(function* () {
 				const timer = yield* Timer;
-				yield* timer.start;
+				yield* timer.start();
 				const focusPomodoroId = (yield* SubscriptionRef.get(timer.state))
 					.currentPomodoroId;
 				yield* timer.switchPhase();
@@ -211,8 +211,8 @@ describe("Timer Service", () => {
 		it.effect("switches phase with autoStart", () =>
 			Effect.gen(function* () {
 				const timer = yield* Timer;
-				yield* timer.start;
-				yield* timer.skip;
+				yield* timer.start();
+				yield* timer.skip();
 				const state = yield* SubscriptionRef.get(timer.state);
 				expect(state.phase).toBe("break");
 				expect(state.status).toBe("running");
@@ -301,7 +301,7 @@ describe("Timer Service", () => {
 		it.effect("calculates elapsed time correctly", () =>
 			Effect.gen(function* () {
 				const timer = yield* Timer;
-				yield* timer.start;
+				yield* timer.start();
 				const state = yield* SubscriptionRef.get(timer.state);
 				expect(state.totalElapsedSeconds).toBe(0);
 			}).pipe(Effect.provide(Timer.layer)),

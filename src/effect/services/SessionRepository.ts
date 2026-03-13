@@ -49,27 +49,32 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 			const db = getDb();
 			yield* Effect.logDebug("SessionRepository initialized");
 
-			const createPomodoro = Effect.gen(function* () {
-				yield* Effect.logDebug("Creating pomodoro");
-				const result = yield* Effect.tryPromise({
-					try: async () => {
-						const [row] = await db.insert(pomodoros).values({}).returning();
-						return row as Pomodoro;
-					},
-					catch: (error) =>
-						new DatabaseError({
-							message: "Failed to create pomodoro",
-							cause: error,
-						}),
-				});
-				yield* Effect.logDebug("Pomodoro created").pipe(
-					Effect.annotateLogs("pomodoroId", result.id),
-				);
-				return result;
-			}).pipe(Effect.withLogSpan("SessionRepository.createPomodoro"));
+			const createPomodoro = Effect.fn("SessionRepository.createPomodoro")(
+				function* () {
+					yield* Effect.logDebug("Creating pomodoro");
+					const result = yield* Effect.tryPromise({
+						try: async () => {
+							const [row] = await db.insert(pomodoros).values({}).returning();
+							return row as Pomodoro;
+						},
+						catch: (error) =>
+							new DatabaseError({
+								message: "Failed to create pomodoro",
+								cause: error,
+							}),
+					});
+					yield* Effect.annotateCurrentSpan("pomodoroId", result.id);
+					yield* Effect.logDebug("Pomodoro created").pipe(
+						Effect.annotateLogs("pomodoroId", result.id),
+					);
+					return result;
+				},
+			);
 
-			const getPomodoro = (id: string) =>
-				Effect.tryPromise({
+			const getPomodoro = Effect.fn("SessionRepository.getPomodoro")(function* (
+				id: string,
+			) {
+				const result = yield* Effect.tryPromise({
 					try: async () => {
 						const result = await db
 							.select()
@@ -83,19 +88,21 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 							message: "Failed to get pomodoro",
 							cause: error,
 						}),
-				}).pipe(
-					Effect.flatMap((result) =>
-						result
-							? Effect.succeed(result)
-							: Effect.fail(new PomodoroNotFoundError({ pomodoroId: id })),
-					),
-				);
+				});
+				if (!result) {
+					return yield* Effect.fail(
+						new PomodoroNotFoundError({ pomodoroId: id }),
+					);
+				}
+				return result;
+			});
 
-			const completePomodoro = (id: string) =>
-				Effect.gen(function* () {
+			const completePomodoro = Effect.fn("SessionRepository.completePomodoro")(
+				function* (id: string) {
 					yield* Effect.logDebug("Completing pomodoro").pipe(
 						Effect.annotateLogs("pomodoroId", id),
 					);
+					yield* Effect.annotateCurrentSpan("pomodoroId", id);
 					return yield* Effect.tryPromise({
 						try: async () => {
 							const [result] = await db
@@ -111,171 +118,198 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 								cause: error,
 							}),
 					});
-				}).pipe(Effect.withLogSpan("SessionRepository.completePomodoro"));
+				},
+			);
 
-			const createFocusSession = (input: CreateFocusSessionInput) =>
-				Effect.gen(function* () {
-					yield* Effect.logDebug("Creating focus session").pipe(
-						Effect.annotateLogs("pomodoroId", input.pomodoroId),
-					);
-					const result = yield* Effect.tryPromise({
-						try: async () => {
-							const [row] = await db
-								.insert(focusSessions)
-								.values({
-									pomodoroId: input.pomodoroId,
-									configuredSeconds: input.configuredSeconds,
-									startedAt: new Date(),
-								})
-								.returning();
-							return row as unknown as FocusSession;
-						},
-						catch: (error) =>
-							new DatabaseError({
-								message: "Failed to create focus session",
-								cause: error,
-							}),
-					});
-					yield* Effect.logDebug("Focus session created").pipe(
-						Effect.annotateLogs("sessionId", result.id),
-					);
-					return result;
-				}).pipe(Effect.withLogSpan("SessionRepository.createFocusSession"));
-
-			const getFocusSession = (id: string) =>
-				Effect.tryPromise({
+			const createFocusSession = Effect.fn(
+				"SessionRepository.createFocusSession",
+			)(function* (input: CreateFocusSessionInput) {
+				yield* Effect.logDebug("Creating focus session").pipe(
+					Effect.annotateLogs("pomodoroId", input.pomodoroId),
+				);
+				const result = yield* Effect.tryPromise({
 					try: async () => {
-						const result = await db
-							.select()
-							.from(focusSessions)
-							.where(eq(focusSessions.id, id))
-							.limit(1);
-						return result[0] as unknown as FocusSession | undefined;
+						const [row] = await db
+							.insert(focusSessions)
+							.values({
+								pomodoroId: input.pomodoroId,
+								configuredSeconds: input.configuredSeconds,
+								startedAt: new Date(),
+							})
+							.returning();
+						return row as unknown as FocusSession;
 					},
 					catch: (error) =>
 						new DatabaseError({
-							message: "Failed to get focus session",
+							message: "Failed to create focus session",
 							cause: error,
 						}),
-				}).pipe(
-					Effect.flatMap((result) =>
-						result
-							? Effect.succeed(result)
-							: Effect.fail(new FocusSessionNotFoundError({ sessionId: id })),
-					),
+				});
+				yield* Effect.annotateCurrentSpan({
+					pomodoroId: input.pomodoroId,
+					sessionId: result.id,
+				});
+				yield* Effect.logDebug("Focus session created").pipe(
+					Effect.annotateLogs("sessionId", result.id),
 				);
+				return result;
+			});
 
-			const completeFocusSession = (id: string, input: CompleteSessionInput) =>
-				Effect.gen(function* () {
-					yield* Effect.logInfo("Completing focus session").pipe(
-						Effect.annotateLogs({
-							sessionId: id,
-							elapsedSeconds: String(input.elapsedSeconds),
-						}),
-					);
-					return yield* Effect.tryPromise({
+			const getFocusSession = Effect.fn("SessionRepository.getFocusSession")(
+				function* (id: string) {
+					const result = yield* Effect.tryPromise({
 						try: async () => {
-							const [result] = await db
-								.update(focusSessions)
-								.set({
-									elapsedSeconds: input.elapsedSeconds,
-									completedAt: new Date(),
-									completed: true,
-								})
+							const result = await db
+								.select()
+								.from(focusSessions)
 								.where(eq(focusSessions.id, id))
-								.returning();
-							return result as unknown as FocusSession;
+								.limit(1);
+							return result[0] as unknown as FocusSession | undefined;
 						},
 						catch: (error) =>
 							new DatabaseError({
-								message: "Failed to complete focus session",
+								message: "Failed to get focus session",
 								cause: error,
 							}),
 					});
-				}).pipe(Effect.withLogSpan("SessionRepository.completeFocusSession"));
-
-			const createBreakSession = (input: CreateBreakSessionInput) =>
-				Effect.gen(function* () {
-					yield* Effect.logDebug("Creating break session").pipe(
-						Effect.annotateLogs("pomodoroId", input.pomodoroId),
-					);
-					const result = yield* Effect.tryPromise({
-						try: async () => {
-							const [row] = await db
-								.insert(breakSessions)
-								.values({
-									pomodoroId: input.pomodoroId,
-									configuredSeconds: input.configuredSeconds,
-									startedAt: new Date(),
-								})
-								.returning();
-							return row as unknown as BreakSession;
-						},
-						catch: (error) =>
-							new DatabaseError({
-								message: "Failed to create break session",
-								cause: error,
-							}),
-					});
-					yield* Effect.logDebug("Break session created").pipe(
-						Effect.annotateLogs("sessionId", result.id),
-					);
+					if (!result) {
+						return yield* Effect.fail(
+							new FocusSessionNotFoundError({ sessionId: id }),
+						);
+					}
 					return result;
-				}).pipe(Effect.withLogSpan("SessionRepository.createBreakSession"));
+				},
+			);
 
-			const getBreakSession = (id: string) =>
-				Effect.tryPromise({
+			const completeFocusSession = Effect.fn(
+				"SessionRepository.completeFocusSession",
+			)(function* (id: string, input: CompleteSessionInput) {
+				yield* Effect.logInfo("Completing focus session").pipe(
+					Effect.annotateLogs({
+						sessionId: id,
+						elapsedSeconds: String(input.elapsedSeconds),
+					}),
+				);
+				yield* Effect.annotateCurrentSpan({
+					sessionId: id,
+					elapsedSeconds: String(input.elapsedSeconds),
+				});
+				return yield* Effect.tryPromise({
 					try: async () => {
-						const result = await db
-							.select()
-							.from(breakSessions)
-							.where(eq(breakSessions.id, id))
-							.limit(1);
-						return result[0] as unknown as BreakSession | undefined;
+						const [result] = await db
+							.update(focusSessions)
+							.set({
+								elapsedSeconds: input.elapsedSeconds,
+								completedAt: new Date(),
+								completed: true,
+							})
+							.where(eq(focusSessions.id, id))
+							.returning();
+						return result as unknown as FocusSession;
 					},
 					catch: (error) =>
 						new DatabaseError({
-							message: "Failed to get break session",
+							message: "Failed to complete focus session",
 							cause: error,
 						}),
-				}).pipe(
-					Effect.flatMap((result) =>
-						result
-							? Effect.succeed(result)
-							: Effect.fail(new BreakSessionNotFoundError({ sessionId: id })),
-					),
-				);
+				});
+			});
 
-			const completeBreakSession = (id: string, input: CompleteSessionInput) =>
-				Effect.gen(function* () {
-					yield* Effect.logInfo("Completing break session").pipe(
-						Effect.annotateLogs({
-							sessionId: id,
-							elapsedSeconds: String(input.elapsedSeconds),
+			const createBreakSession = Effect.fn(
+				"SessionRepository.createBreakSession",
+			)(function* (input: CreateBreakSessionInput) {
+				yield* Effect.logDebug("Creating break session").pipe(
+					Effect.annotateLogs("pomodoroId", input.pomodoroId),
+				);
+				const result = yield* Effect.tryPromise({
+					try: async () => {
+						const [row] = await db
+							.insert(breakSessions)
+							.values({
+								pomodoroId: input.pomodoroId,
+								configuredSeconds: input.configuredSeconds,
+								startedAt: new Date(),
+							})
+							.returning();
+						return row as unknown as BreakSession;
+					},
+					catch: (error) =>
+						new DatabaseError({
+							message: "Failed to create break session",
+							cause: error,
 						}),
-					);
-					return yield* Effect.tryPromise({
+				});
+				yield* Effect.annotateCurrentSpan({
+					pomodoroId: input.pomodoroId,
+					sessionId: result.id,
+				});
+				yield* Effect.logDebug("Break session created").pipe(
+					Effect.annotateLogs("sessionId", result.id),
+				);
+				return result;
+			});
+
+			const getBreakSession = Effect.fn("SessionRepository.getBreakSession")(
+				function* (id: string) {
+					const result = yield* Effect.tryPromise({
 						try: async () => {
-							const [result] = await db
-								.update(breakSessions)
-								.set({
-									elapsedSeconds: input.elapsedSeconds,
-									completedAt: new Date(),
-									completed: true,
-								})
+							const result = await db
+								.select()
+								.from(breakSessions)
 								.where(eq(breakSessions.id, id))
-								.returning();
-							return result as unknown as BreakSession;
+								.limit(1);
+							return result[0] as unknown as BreakSession | undefined;
 						},
 						catch: (error) =>
 							new DatabaseError({
-								message: "Failed to complete break session",
+								message: "Failed to get break session",
 								cause: error,
 							}),
 					});
-				}).pipe(Effect.withLogSpan("SessionRepository.completeBreakSession"));
+					if (!result) {
+						return yield* Effect.fail(
+							new BreakSessionNotFoundError({ sessionId: id }),
+						);
+					}
+					return result;
+				},
+			);
 
-			const getStats = Effect.gen(function* () {
+			const completeBreakSession = Effect.fn(
+				"SessionRepository.completeBreakSession",
+			)(function* (id: string, input: CompleteSessionInput) {
+				yield* Effect.logInfo("Completing break session").pipe(
+					Effect.annotateLogs({
+						sessionId: id,
+						elapsedSeconds: String(input.elapsedSeconds),
+					}),
+				);
+				yield* Effect.annotateCurrentSpan({
+					sessionId: id,
+					elapsedSeconds: String(input.elapsedSeconds),
+				});
+				return yield* Effect.tryPromise({
+					try: async () => {
+						const [result] = await db
+							.update(breakSessions)
+							.set({
+								elapsedSeconds: input.elapsedSeconds,
+								completedAt: new Date(),
+								completed: true,
+							})
+							.where(eq(breakSessions.id, id))
+							.returning();
+						return result as unknown as BreakSession;
+					},
+					catch: (error) =>
+						new DatabaseError({
+							message: "Failed to complete break session",
+							cause: error,
+						}),
+				});
+			});
+
+			const getStats = Effect.fn("SessionRepository.getStats")(function* () {
 				yield* Effect.logDebug("Fetching stats");
 				return yield* Effect.tryPromise({
 					try: async () => {
@@ -538,7 +572,7 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 							cause: error,
 						}),
 				});
-			}).pipe(Effect.withLogSpan("SessionRepository.getStats"));
+			});
 
 			return {
 				createPomodoro,

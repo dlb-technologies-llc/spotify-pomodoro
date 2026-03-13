@@ -97,26 +97,27 @@ describe("WebPlaybackSdk", () => {
 
 		const MockWebPlaybackSdk = Layer.succeed(WebPlaybackSdk)(
 			WebPlaybackSdk.of({
-				initialize: Effect.void,
-				ensureDevice: Effect.succeed(mockDeviceId),
-				getDeviceState: Effect.succeed(
-					Option.some(
-						new SdkDeviceState({
-							deviceId: mockDeviceId,
-							isReady: true,
-							playerName: "Spotify Pomodoro",
-						}),
+				initialize: () => Effect.void,
+				ensureDevice: () => Effect.succeed(mockDeviceId),
+				getDeviceState: () =>
+					Effect.succeed(
+						Option.some(
+							new SdkDeviceState({
+								deviceId: mockDeviceId,
+								isReady: true,
+								playerName: "Spotify Pomodoro",
+							}),
+						),
 					),
-				),
-				destroy: Effect.void,
-				isDisconnected: Effect.succeed(false),
+				destroy: () => Effect.void,
+				isDisconnected: () => Effect.succeed(false),
 			}),
 		);
 
 		it.effect("mock ensureDevice returns device id", () =>
 			Effect.gen(function* () {
 				const sdk = yield* WebPlaybackSdk;
-				const deviceId = yield* sdk.ensureDevice;
+				const deviceId = yield* sdk.ensureDevice();
 				expect(deviceId).toBe(mockDeviceId);
 			}).pipe(Effect.provide(MockWebPlaybackSdk)),
 		);
@@ -124,7 +125,7 @@ describe("WebPlaybackSdk", () => {
 		it.effect("mock getDeviceState returns Some with state", () =>
 			Effect.gen(function* () {
 				const sdk = yield* WebPlaybackSdk;
-				const state = yield* sdk.getDeviceState;
+				const state = yield* sdk.getDeviceState();
 				expect(Option.isSome(state)).toBe(true);
 				if (Option.isSome(state)) {
 					expect(state.value.deviceId).toBe(mockDeviceId);
@@ -137,7 +138,7 @@ describe("WebPlaybackSdk", () => {
 		it.effect("mock can simulate PremiumRequired failure", () =>
 			Effect.gen(function* () {
 				const sdk = yield* WebPlaybackSdk;
-				const result = yield* Effect.result(sdk.ensureDevice);
+				const result = yield* Effect.result(sdk.ensureDevice());
 				expect(Result.isFailure(result)).toBe(true);
 				if (Result.isFailure(result)) {
 					expect(result.failure).toBeInstanceOf(PremiumRequiredError);
@@ -146,19 +147,21 @@ describe("WebPlaybackSdk", () => {
 				Effect.provide(
 					Layer.succeed(WebPlaybackSdk)(
 						WebPlaybackSdk.of({
-							initialize: Effect.fail(
-								new PremiumRequiredError({
-									message: "Premium required",
-								}),
-							),
-							ensureDevice: Effect.fail(
-								new PremiumRequiredError({
-									message: "Premium required",
-								}),
-							),
-							getDeviceState: Effect.succeed(Option.none()),
-							destroy: Effect.void,
-							isDisconnected: Effect.succeed(false),
+							initialize: () =>
+								Effect.fail(
+									new PremiumRequiredError({
+										message: "Premium required",
+									}),
+								),
+							ensureDevice: () =>
+								Effect.fail(
+									new PremiumRequiredError({
+										message: "Premium required",
+									}),
+								),
+							getDeviceState: () => Effect.succeed(Option.none()),
+							destroy: () => Effect.void,
+							isDisconnected: () => Effect.succeed(false),
 						}),
 					),
 				),
@@ -168,7 +171,7 @@ describe("WebPlaybackSdk", () => {
 		it.effect("mock can simulate SdkUnavailable failure", () =>
 			Effect.gen(function* () {
 				const sdk = yield* WebPlaybackSdk;
-				const result = yield* Effect.result(sdk.ensureDevice);
+				const result = yield* Effect.result(sdk.ensureDevice());
 				expect(Result.isFailure(result)).toBe(true);
 				if (Result.isFailure(result)) {
 					expect(result.failure).toBeInstanceOf(SdkUnavailableError);
@@ -180,21 +183,23 @@ describe("WebPlaybackSdk", () => {
 				Effect.provide(
 					Layer.succeed(WebPlaybackSdk)(
 						WebPlaybackSdk.of({
-							initialize: Effect.fail(
-								new SdkUnavailableError({
-									reason: "ScriptLoadFailed",
-									message: "Script failed",
-								}),
-							),
-							ensureDevice: Effect.fail(
-								new SdkUnavailableError({
-									reason: "ScriptLoadFailed",
-									message: "Script failed",
-								}),
-							),
-							getDeviceState: Effect.succeed(Option.none()),
-							destroy: Effect.void,
-							isDisconnected: Effect.succeed(false),
+							initialize: () =>
+								Effect.fail(
+									new SdkUnavailableError({
+										reason: "ScriptLoadFailed",
+										message: "Script failed",
+									}),
+								),
+							ensureDevice: () =>
+								Effect.fail(
+									new SdkUnavailableError({
+										reason: "ScriptLoadFailed",
+										message: "Script failed",
+									}),
+								),
+							getDeviceState: () => Effect.succeed(Option.none()),
+							destroy: () => Effect.void,
+							isDisconnected: () => Effect.succeed(false),
 						}),
 					),
 				),
@@ -204,7 +209,7 @@ describe("WebPlaybackSdk", () => {
 		it.effect("mock isDisconnected returns false by default", () =>
 			Effect.gen(function* () {
 				const sdk = yield* WebPlaybackSdk;
-				const disconnected = yield* sdk.isDisconnected;
+				const disconnected = yield* sdk.isDisconnected();
 				expect(disconnected).toBe(false);
 			}).pipe(Effect.provide(MockWebPlaybackSdk)),
 		);
@@ -212,17 +217,17 @@ describe("WebPlaybackSdk", () => {
 		it.effect("mock can simulate disconnected state", () =>
 			Effect.gen(function* () {
 				const sdk = yield* WebPlaybackSdk;
-				const disconnected = yield* sdk.isDisconnected;
+				const disconnected = yield* sdk.isDisconnected();
 				expect(disconnected).toBe(true);
 			}).pipe(
 				Effect.provide(
 					Layer.succeed(WebPlaybackSdk)(
 						WebPlaybackSdk.of({
-							initialize: Effect.void,
-							ensureDevice: Effect.succeed(mockDeviceId),
-							getDeviceState: Effect.succeed(Option.none()),
-							destroy: Effect.void,
-							isDisconnected: Effect.succeed(true),
+							initialize: () => Effect.void,
+							ensureDevice: () => Effect.succeed(mockDeviceId),
+							getDeviceState: () => Effect.succeed(Option.none()),
+							destroy: () => Effect.void,
+							isDisconnected: () => Effect.succeed(true),
 						}),
 					),
 				),

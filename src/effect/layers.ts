@@ -6,6 +6,7 @@
 
 import { Layer } from "effect";
 import { FetchHttpClient } from "effect/unstable/http";
+import { FrontendTelemetryLayer } from "@/lib/telemetry";
 import { LoggingLayer } from "./logging";
 import { AudioNotification } from "./services/AudioNotification";
 import { SessionRepository } from "./services/SessionRepository";
@@ -42,6 +43,7 @@ export const MainLayer = Layer.mergeAll(
 	Timer.layer,
 	AudioNotification.layer,
 	LoggingLayer,
+	FrontendTelemetryLayer,
 );
 
 /**
