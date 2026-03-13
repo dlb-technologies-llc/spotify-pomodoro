@@ -4,7 +4,7 @@
  * @module
  */
 
-import { Option } from "effect";
+import { Effect, Option } from "effect";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { runEffect } from "../effect/runtime";
 import type { PlaybackState, Playlist } from "../effect/schema/Playlist";
@@ -35,7 +35,12 @@ export function useSpotifyAuth() {
 			}
 		}
 
-		runEffect(SpotifyAuth.restoreToken)
+		runEffect(
+			Effect.gen(function* () {
+				const auth = yield* SpotifyAuth;
+				return yield* auth.restoreToken;
+			}),
+		)
 			.then((maybeToken) => {
 				setIsAuthenticated(Option.isSome(maybeToken));
 				setIsLoading(false);
@@ -50,7 +55,12 @@ export function useSpotifyAuth() {
 	}, []);
 
 	const logout = useCallback(async () => {
-		await runEffect(SpotifyAuth.logout);
+		await runEffect(
+			Effect.gen(function* () {
+				const auth = yield* SpotifyAuth;
+				yield* auth.logout;
+			}),
+		);
 		setIsAuthenticated(false);
 	}, []);
 
@@ -77,8 +87,13 @@ export function useSpotifyPlaylists() {
 		setIsLoading(true);
 		setError(null);
 		try {
-			const result = await runEffect(SpotifyClient.getPlaylists);
-			setPlaylists(result);
+			const result = await runEffect(
+				Effect.gen(function* () {
+					const client = yield* SpotifyClient;
+					return yield* client.getPlaylists;
+				}),
+			);
+			setPlaylists(result as Playlist[]);
 		} catch (e) {
 			setError(e instanceof Error ? e.message : "Failed to fetch playlists");
 		} finally {
@@ -143,7 +158,12 @@ export function useSpotifyPlayback() {
 	const fetchPlaybackState = useCallback(async () => {
 		setIsLoading(true);
 		try {
-			const result = await runEffect(SpotifyClient.getPlaybackState);
+			const result = (await runEffect(
+				Effect.gen(function* () {
+					const client = yield* SpotifyClient;
+					return yield* client.getPlaybackState;
+				}),
+			)) as PlaybackState | null;
 			setPlaybackState(result);
 			if (result?.deviceId) {
 				setLastDeviceId(result.deviceId);
@@ -170,7 +190,12 @@ export function useSpotifyPlayback() {
 			setError(null);
 			try {
 				const deviceId = playbackState?.deviceId ?? lastDeviceId ?? undefined;
-				await runEffect(SpotifyClient.play({ ...options, deviceId }));
+				await runEffect(
+					Effect.gen(function* () {
+						const client = yield* SpotifyClient;
+						return yield* client.play({ ...options, deviceId });
+					}),
+				);
 				const newSource = await fetchPlaybackState();
 				if (newSource === "browser") {
 					broadcastRef.current?.postMessage({ type: "sdk-claimed" });
@@ -198,16 +223,31 @@ export function useSpotifyPlayback() {
 	);
 
 	const pause = useCallback(async () => {
-		await runEffect(SpotifyClient.pause);
+		await runEffect(
+			Effect.gen(function* () {
+				const client = yield* SpotifyClient;
+				return yield* client.pause;
+			}),
+		);
 		await fetchPlaybackState();
 	}, [fetchPlaybackState]);
 
 	const setShuffle = useCallback(async (state: boolean) => {
-		await runEffect(SpotifyClient.setShuffle(state));
+		await runEffect(
+			Effect.gen(function* () {
+				const client = yield* SpotifyClient;
+				return yield* client.setShuffle(state);
+			}),
+		);
 	}, []);
 
 	const setRepeat = useCallback(async (state: "off" | "context" | "track") => {
-		await runEffect(SpotifyClient.setRepeat(state));
+		await runEffect(
+			Effect.gen(function* () {
+				const client = yield* SpotifyClient;
+				return yield* client.setRepeat(state);
+			}),
+		);
 	}, []);
 
 	return {

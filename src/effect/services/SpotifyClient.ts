@@ -4,8 +4,8 @@
  * @module
  */
 
-import { HttpClient, HttpClientRequest } from "@effect/platform";
-import { Effect } from "effect";
+import { Effect, Layer, ServiceMap } from "effect";
+import { HttpClient, HttpClientRequest } from "effect/unstable/http";
 import { PremiumRequiredError, SpotifyApiError } from "../errors/SpotifyError";
 import {
 	PlaybackState,
@@ -26,14 +26,12 @@ const SPOTIFY_API_BASE = "https://api.spotify.com/v1";
  * @since 0.0.1
  * @category Services
  */
-export class SpotifyClient extends Effect.Service<SpotifyClient>()(
+export class SpotifyClient extends ServiceMap.Service<SpotifyClient>()(
 	"SpotifyClient",
 	{
-		effect: Effect.gen(function* () {
+		make: Effect.gen(function* () {
 			yield* Effect.logDebug("SpotifyClient initializing");
-			const httpClient = (yield* HttpClient.HttpClient).pipe(
-				HttpClient.withTracerPropagation(false),
-			);
+			const httpClient = yield* HttpClient.HttpClient;
 			const auth = yield* SpotifyAuth;
 			const sdk = yield* WebPlaybackSdk;
 			yield* Effect.logDebug("SpotifyClient initialized");
@@ -211,7 +209,7 @@ export class SpotifyClient extends Effect.Service<SpotifyClient>()(
 								"Authorization",
 								`Bearer ${accessToken}`,
 							),
-							HttpClientRequest.bodyUnsafeJson(body),
+							HttpClientRequest.bodyJsonUnsafe(body),
 						);
 
 						const res = yield* httpClient.execute(request).pipe(
@@ -259,7 +257,7 @@ export class SpotifyClient extends Effect.Service<SpotifyClient>()(
 									"Authorization",
 									`Bearer ${accessToken}`,
 								),
-								HttpClientRequest.bodyUnsafeJson(body),
+								HttpClientRequest.bodyJsonUnsafe(body),
 							);
 
 							yield* httpClient.execute(retryRequest).pipe(
@@ -384,6 +382,7 @@ export class SpotifyClient extends Effect.Service<SpotifyClient>()(
 				setRepeat,
 			};
 		}),
-		accessors: true,
 	},
-) {}
+) {
+	static readonly layer = Layer.effect(this, this.make);
+}

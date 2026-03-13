@@ -12,15 +12,15 @@ import { Schema } from "effect";
  * @since 0.0.1
  * @category Errors
  */
-export class SpotifyAuthError extends Schema.TaggedError<SpotifyAuthError>()(
+export class SpotifyAuthError extends Schema.TaggedErrorClass<SpotifyAuthError>()(
 	"SpotifyAuthError",
 	{
-		reason: Schema.Literal(
+		reason: Schema.Literals([
 			"InvalidState",
 			"TokenExchangeFailed",
 			"TokenRefreshFailed",
 			"NotAuthenticated",
-		),
+		]),
 		message: Schema.String,
 	},
 ) {}
@@ -31,7 +31,7 @@ export class SpotifyAuthError extends Schema.TaggedError<SpotifyAuthError>()(
  * @since 0.0.1
  * @category Errors
  */
-export class SpotifyApiError extends Schema.TaggedError<SpotifyApiError>()(
+export class SpotifyApiError extends Schema.TaggedErrorClass<SpotifyApiError>()(
 	"SpotifyApiError",
 	{
 		status: Schema.Number,
@@ -45,7 +45,7 @@ export class SpotifyApiError extends Schema.TaggedError<SpotifyApiError>()(
  * @since 1.3.0
  * @category Errors
  */
-export class NoActiveDeviceError extends Schema.TaggedError<NoActiveDeviceError>()(
+export class NoActiveDeviceError extends Schema.TaggedErrorClass<NoActiveDeviceError>()(
 	"NoActiveDeviceError",
 	{
 		message: Schema.String,
@@ -58,7 +58,7 @@ export class NoActiveDeviceError extends Schema.TaggedError<NoActiveDeviceError>
  * @since 1.3.0
  * @category Errors
  */
-export class PremiumRequiredError extends Schema.TaggedError<PremiumRequiredError>()(
+export class PremiumRequiredError extends Schema.TaggedErrorClass<PremiumRequiredError>()(
 	"PremiumRequiredError",
 	{
 		message: Schema.String,
@@ -71,16 +71,16 @@ export class PremiumRequiredError extends Schema.TaggedError<PremiumRequiredErro
  * @since 1.3.0
  * @category Errors
  */
-export class SdkUnavailableError extends Schema.TaggedError<SdkUnavailableError>()(
+export class SdkUnavailableError extends Schema.TaggedErrorClass<SdkUnavailableError>()(
 	"SdkUnavailableError",
 	{
-		reason: Schema.Literal(
+		reason: Schema.Literals([
 			"InitFailed",
 			"AuthFailed",
 			"AccountError",
 			"ScriptLoadFailed",
 			"Disconnected",
-		),
+		]),
 		message: Schema.String,
 	},
 ) {}

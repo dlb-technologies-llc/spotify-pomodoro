@@ -46,7 +46,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 	}
 
 	const program = Effect.gen(function* () {
-		const enabled = yield* Auth.isEnabled;
+		const auth = yield* Auth;
+		const enabled = yield* auth.isEnabled;
 		if (!enabled) {
 			return {
 				success: false,
@@ -55,17 +56,17 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 			} as const;
 		}
 
-		yield* Auth.validateCredentials(username, password);
+		yield* auth.validateCredentials(username, password);
 
-		const config = yield* Auth.getConfig;
-		const cookieValue = yield* Auth.createCookie(username);
+		const config = yield* auth.getConfig;
+		const cookieValue = yield* auth.createCookie(username);
 
 		return {
 			success: true,
 			cookieValue,
 			maxAge: config.maxAge,
 		} as const;
-	}).pipe(Effect.provide(Auth.Default));
+	}).pipe(Effect.withSpan("POST /api/auth/login"), Effect.provide(Auth.layer));
 
 	const result: LoginResult = await Effect.runPromise(program).catch(
 		(error) => {

@@ -6,7 +6,7 @@
 import { createClient } from "@libsql/client";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
-import { Effect } from "effect";
+import { Effect, Layer, ServiceMap } from "effect";
 import { breakSessions, focusSessions, pomodoros } from "../../db/schema";
 import {
 	BreakSessionNotFoundError,
@@ -41,10 +41,10 @@ const getDb = () => {
  * @since 0.2.0
  * @category Services
  */
-export class SessionRepository extends Effect.Service<SessionRepository>()(
+export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 	"SessionRepository",
 	{
-		effect: Effect.gen(function* () {
+		make: Effect.gen(function* () {
 			yield* Effect.logDebug("SessionRepository initializing");
 			const db = getDb();
 			yield* Effect.logDebug("SessionRepository initialized");
@@ -128,7 +128,7 @@ export class SessionRepository extends Effect.Service<SessionRepository>()(
 									startedAt: new Date(),
 								})
 								.returning();
-							return row as FocusSession;
+							return row as unknown as FocusSession;
 						},
 						catch: (error) =>
 							new DatabaseError({
@@ -150,7 +150,7 @@ export class SessionRepository extends Effect.Service<SessionRepository>()(
 							.from(focusSessions)
 							.where(eq(focusSessions.id, id))
 							.limit(1);
-						return result[0] as FocusSession | undefined;
+						return result[0] as unknown as FocusSession | undefined;
 					},
 					catch: (error) =>
 						new DatabaseError({
@@ -184,7 +184,7 @@ export class SessionRepository extends Effect.Service<SessionRepository>()(
 								})
 								.where(eq(focusSessions.id, id))
 								.returning();
-							return result as FocusSession;
+							return result as unknown as FocusSession;
 						},
 						catch: (error) =>
 							new DatabaseError({
@@ -209,7 +209,7 @@ export class SessionRepository extends Effect.Service<SessionRepository>()(
 									startedAt: new Date(),
 								})
 								.returning();
-							return row as BreakSession;
+							return row as unknown as BreakSession;
 						},
 						catch: (error) =>
 							new DatabaseError({
@@ -231,7 +231,7 @@ export class SessionRepository extends Effect.Service<SessionRepository>()(
 							.from(breakSessions)
 							.where(eq(breakSessions.id, id))
 							.limit(1);
-						return result[0] as BreakSession | undefined;
+						return result[0] as unknown as BreakSession | undefined;
 					},
 					catch: (error) =>
 						new DatabaseError({
@@ -265,7 +265,7 @@ export class SessionRepository extends Effect.Service<SessionRepository>()(
 								})
 								.where(eq(breakSessions.id, id))
 								.returning();
-							return result as BreakSession;
+							return result as unknown as BreakSession;
 						},
 						catch: (error) =>
 							new DatabaseError({
@@ -553,6 +553,7 @@ export class SessionRepository extends Effect.Service<SessionRepository>()(
 				getStats,
 			};
 		}),
-		accessors: true,
 	},
-) {}
+) {
+	static readonly layer = Layer.effect(this, this.make);
+}

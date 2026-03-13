@@ -4,7 +4,14 @@
  * @module
  */
 
-import { Effect, Option, Ref, SubscriptionRef } from "effect";
+import {
+	Effect,
+	Layer,
+	Option,
+	Ref,
+	ServiceMap,
+	SubscriptionRef,
+} from "effect";
 import {
 	TimerConfig,
 	type TimerPhase,
@@ -36,8 +43,8 @@ export const TIMER_PRESETS: Record<
  * @since 0.0.1
  * @category Services
  */
-export class Timer extends Effect.Service<Timer>()("Timer", {
-	effect: Effect.gen(function* () {
+export class Timer extends ServiceMap.Service<Timer>()("Timer", {
+	make: Effect.gen(function* () {
 		yield* Effect.logDebug("Timer service initializing");
 
 		const stateRef = yield* SubscriptionRef.make(
@@ -325,7 +332,7 @@ export class Timer extends Effect.Service<Timer>()("Timer", {
 		const setOnTimerEnd = (callback: () => void) =>
 			Ref.set(onTimerEndRef, Option.some(callback));
 
-		const changes = stateRef.changes;
+		const changes = SubscriptionRef.changes(stateRef);
 
 		return {
 			state: stateRef,
@@ -341,5 +348,6 @@ export class Timer extends Effect.Service<Timer>()("Timer", {
 			setOnTimerEnd,
 		};
 	}),
-	accessors: true,
-}) {}
+}) {
+	static readonly layer = Layer.effect(this, this.make);
+}

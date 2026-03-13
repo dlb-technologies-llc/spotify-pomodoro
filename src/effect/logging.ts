@@ -4,7 +4,7 @@
  * @module
  */
 
-import { Layer, Logger, LogLevel } from "effect";
+import { Layer, Logger, type LogLevel, References } from "effect";
 
 /**
  * Parse LOG_LEVEL environment variable to Effect LogLevel.
@@ -16,25 +16,25 @@ const parseLogLevel = (level: string | undefined): LogLevel.LogLevel => {
 	const normalized = level?.toLowerCase();
 	switch (normalized) {
 		case "all":
-			return LogLevel.All;
+			return "All";
 		case "trace":
-			return LogLevel.Trace;
+			return "Trace";
 		case "debug":
-			return LogLevel.Debug;
+			return "Debug";
 		case "info":
-			return LogLevel.Info;
+			return "Info";
 		case "warning":
 		case "warn":
-			return LogLevel.Warning;
+			return "Warn";
 		case "error":
-			return LogLevel.Error;
+			return "Error";
 		case "fatal":
-			return LogLevel.Fatal;
+			return "Fatal";
 		case "none":
 		case "off":
-			return LogLevel.None;
+			return "None";
 		default:
-			return LogLevel.Info;
+			return "Info";
 	}
 };
 
@@ -74,8 +74,8 @@ const getLogLevel = (): LogLevel.LogLevel => {
  * @category Layers
  */
 export const LoggerFormatLayer: Layer.Layer<never> = shouldUsePrettyLogger()
-	? Logger.pretty
-	: Logger.json;
+	? Logger.layer([Logger.consolePretty()])
+	: Logger.layer([Logger.consoleJson]);
 
 /**
  * Minimum log level layer based on LOG_LEVEL environment variable.
@@ -83,7 +83,8 @@ export const LoggerFormatLayer: Layer.Layer<never> = shouldUsePrettyLogger()
  * @since 1.4.0
  * @category Layers
  */
-export const LogLevelLayer: Layer.Layer<never> = Logger.minimumLogLevel(
+export const LogLevelLayer: Layer.Layer<never> = Layer.succeed(
+	References.MinimumLogLevel,
 	getLogLevel(),
 );
 

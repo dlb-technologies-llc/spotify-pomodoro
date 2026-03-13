@@ -16,16 +16,22 @@ const program = Effect.gen(function* () {
 
 	yield* Effect.log("Cleaning database...");
 
-	yield* Effect.try(() => db.delete(breakSessions).run());
+	yield* Effect.try({
+		try: () => db.delete(breakSessions).run(),
+		catch: (e) => e,
+	});
 	yield* Effect.log("  ✓ Deleted break_sessions");
 
-	yield* Effect.try(() => db.delete(focusSessions).run());
+	yield* Effect.try({
+		try: () => db.delete(focusSessions).run(),
+		catch: (e) => e,
+	});
 	yield* Effect.log("  ✓ Deleted focus_sessions");
 
-	yield* Effect.try(() => db.delete(pomodoros).run());
+	yield* Effect.try({ try: () => db.delete(pomodoros).run(), catch: (e) => e });
 	yield* Effect.log("  ✓ Deleted pomodoros");
 
-	yield* Effect.try(() => sqlite.run("VACUUM"));
+	yield* Effect.try({ try: () => sqlite.run("VACUUM"), catch: (e) => e });
 	yield* Effect.log("  ✓ Vacuumed database");
 
 	sqlite.close();

@@ -54,7 +54,10 @@ export const POST: APIRoute = async ({ params, request }) => {
 		);
 		const repo = yield* SessionRepository;
 		return yield* repo.completeBreakSession(id, { elapsedSeconds });
-	}).pipe(Effect.provide(ServerLayer));
+	}).pipe(
+		Effect.withSpan("POST /api/break-sessions/:id/complete"),
+		Effect.provide(ServerLayer),
+	);
 
 	const result = await Effect.runPromise(program).catch((error) => ({
 		error: String(error),

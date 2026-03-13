@@ -4,25 +4,26 @@
  * @module
  */
 
-import { FetchHttpClient } from "@effect/platform";
 import { Layer } from "effect";
+import { FetchHttpClient } from "effect/unstable/http";
 import { LoggingLayer } from "./logging";
 import { AudioNotification } from "./services/AudioNotification";
 import { SessionRepository } from "./services/SessionRepository";
 import { SpotifyAuth } from "./services/SpotifyAuth";
 import { SpotifyClient } from "./services/SpotifyClient";
+import { TelemetryLive } from "./services/Telemetry";
 import { Timer } from "./services/Timer";
 import { WebPlaybackSdk } from "./services/WebPlaybackSdk";
 
-const SpotifyAuthLive = SpotifyAuth.Default.pipe(
+const SpotifyAuthLive = SpotifyAuth.layer.pipe(
 	Layer.provide(FetchHttpClient.layer),
 );
 
-const WebPlaybackSdkLive = WebPlaybackSdk.Default.pipe(
+const WebPlaybackSdkLive = WebPlaybackSdk.layer.pipe(
 	Layer.provide(SpotifyAuthLive),
 );
 
-const SpotifyClientLive = SpotifyClient.Default.pipe(
+const SpotifyClientLive = SpotifyClient.layer.pipe(
 	Layer.provide(SpotifyAuthLive),
 	Layer.provide(WebPlaybackSdkLive),
 	Layer.provide(FetchHttpClient.layer),
@@ -38,8 +39,8 @@ export const MainLayer = Layer.mergeAll(
 	SpotifyAuthLive,
 	SpotifyClientLive,
 	WebPlaybackSdkLive,
-	Timer.Default,
-	AudioNotification.Default,
+	Timer.layer,
+	AudioNotification.layer,
 	LoggingLayer,
 );
 
@@ -49,7 +50,7 @@ export const MainLayer = Layer.mergeAll(
  * @since 0.0.1
  * @category Layers
  */
-export type MainContext = Layer.Layer.Success<typeof MainLayer>;
+export type MainContext = Layer.Success<typeof MainLayer>;
 
 /**
  * Server-side layer for API routes.
@@ -60,8 +61,9 @@ export type MainContext = Layer.Layer.Success<typeof MainLayer>;
  * @category Layers
  */
 export const ServerLayer = Layer.mergeAll(
-	SessionRepository.Default,
+	SessionRepository.layer,
 	LoggingLayer,
+	TelemetryLive,
 );
 
 /**
@@ -70,4 +72,4 @@ export const ServerLayer = Layer.mergeAll(
  * @since 1.4.0
  * @category Layers
  */
-export type ServerContext = Layer.Layer.Success<typeof ServerLayer>;
+export type ServerContext = Layer.Success<typeof ServerLayer>;

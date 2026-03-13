@@ -128,6 +128,9 @@ Optional for logging:
 - `PUBLIC_LOG_LEVEL` - Log level: all, trace, debug, info, warning, error, fatal, none (default: info)
 - `PUBLIC_LOG_FORMAT` - Log format: pretty (colorful) or json (structured) (default: pretty in dev)
 
+Optional for observability:
+- `OTEL_COLLECTOR_URL` - OpenTelemetry collector endpoint (default: http://localhost:4318)
+
 ## OAuth Architecture
 
 Spotify OAuth uses server-side PKCE flow:

@@ -4,7 +4,7 @@
  * @module
  */
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Either } from "effect";
+import { Effect, Result } from "effect";
 import {
 	NoActiveDeviceError,
 	PremiumRequiredError,
@@ -46,17 +46,17 @@ describe("NoActiveDeviceError", () => {
 		}),
 	);
 
-	it.effect("appears as Left when using Effect.either", () =>
+	it.effect("appears as Failure when using Effect.result", () =>
 		Effect.gen(function* () {
-			const result = yield* Effect.either(
+			const result = yield* Effect.result(
 				Effect.fail(
 					new NoActiveDeviceError({ message: "No active device found" }),
 				),
 			);
-			expect(result._tag).toBe("Left");
-			if (Either.isLeft(result)) {
-				expect(result.left).toBeInstanceOf(NoActiveDeviceError);
-				expect(result.left._tag).toBe("NoActiveDeviceError");
+			expect(Result.isFailure(result)).toBe(true);
+			if (Result.isFailure(result)) {
+				expect(result.failure).toBeInstanceOf(NoActiveDeviceError);
+				expect(result.failure._tag).toBe("NoActiveDeviceError");
 			}
 		}),
 	);
@@ -97,19 +97,19 @@ describe("PremiumRequiredError", () => {
 		}),
 	);
 
-	it.effect("appears as Left when using Effect.either", () =>
+	it.effect("appears as Failure when using Effect.result", () =>
 		Effect.gen(function* () {
-			const result = yield* Effect.either(
+			const result = yield* Effect.result(
 				Effect.fail(
 					new PremiumRequiredError({
 						message: "Premium subscription required",
 					}),
 				),
 			);
-			expect(result._tag).toBe("Left");
-			if (Either.isLeft(result)) {
-				expect(result.left).toBeInstanceOf(PremiumRequiredError);
-				expect(result.left._tag).toBe("PremiumRequiredError");
+			expect(Result.isFailure(result)).toBe(true);
+			if (Result.isFailure(result)) {
+				expect(result.failure).toBeInstanceOf(PremiumRequiredError);
+				expect(result.failure._tag).toBe("PremiumRequiredError");
 			}
 		}),
 	);
@@ -183,9 +183,9 @@ describe("SdkUnavailableError", () => {
 		}),
 	);
 
-	it.effect("appears as Left when using Effect.either", () =>
+	it.effect("appears as Failure when using Effect.result", () =>
 		Effect.gen(function* () {
-			const result = yield* Effect.either(
+			const result = yield* Effect.result(
 				Effect.fail(
 					new SdkUnavailableError({
 						reason: "AccountError",
@@ -193,11 +193,11 @@ describe("SdkUnavailableError", () => {
 					}),
 				),
 			);
-			expect(result._tag).toBe("Left");
-			if (Either.isLeft(result)) {
-				expect(result.left).toBeInstanceOf(SdkUnavailableError);
-				expect(result.left._tag).toBe("SdkUnavailableError");
-				expect(result.left.reason).toBe("AccountError");
+			expect(Result.isFailure(result)).toBe(true);
+			if (Result.isFailure(result)) {
+				expect(result.failure).toBeInstanceOf(SdkUnavailableError);
+				expect(result.failure._tag).toBe("SdkUnavailableError");
+				expect(result.failure.reason).toBe("AccountError");
 			}
 		}),
 	);

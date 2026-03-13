@@ -11,7 +11,7 @@ import { Schema } from "effect";
  * @since 1.1.0
  * @category Errors
  */
-export class AuthConfigError extends Schema.TaggedError<AuthConfigError>()(
+export class AuthConfigError extends Schema.TaggedErrorClass<AuthConfigError>()(
 	"AuthConfigError",
 	{
 		message: Schema.String,
@@ -24,7 +24,7 @@ export class AuthConfigError extends Schema.TaggedError<AuthConfigError>()(
  * @since 1.1.0
  * @category Errors
  */
-export class InvalidCredentialsError extends Schema.TaggedError<InvalidCredentialsError>()(
+export class InvalidCredentialsError extends Schema.TaggedErrorClass<InvalidCredentialsError>()(
 	"InvalidCredentialsError",
 	{},
 ) {}
@@ -35,7 +35,7 @@ export class InvalidCredentialsError extends Schema.TaggedError<InvalidCredentia
  * @since 1.1.0
  * @category Errors
  */
-export class InvalidAuthCookieError extends Schema.TaggedError<InvalidAuthCookieError>()(
+export class InvalidAuthCookieError extends Schema.TaggedErrorClass<InvalidAuthCookieError>()(
 	"InvalidAuthCookieError",
 	{
 		reason: Schema.String,
