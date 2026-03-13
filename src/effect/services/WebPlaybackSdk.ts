@@ -43,7 +43,7 @@ export class WebPlaybackSdk extends ServiceMap.Service<WebPlaybackSdk>()(
 			);
 			const disconnectedRef = yield* Ref.make(false);
 
-			const destroy = Effect.gen(function* () {
+			const destroy = Effect.fn("WebPlaybackSdk.destroy")(function* () {
 				const state = yield* Ref.get(stateRef);
 				yield* Option.match(state, {
 					onNone: () => Effect.void,
@@ -58,12 +58,9 @@ export class WebPlaybackSdk extends ServiceMap.Service<WebPlaybackSdk>()(
 							yield* Ref.set(disconnectedRef, false);
 						}),
 				});
-			}).pipe(Effect.withLogSpan("WebPlaybackSdk.destroy"));
+			});
 
-			const initialize: Effect.Effect<
-				void,
-				SdkUnavailableError | PremiumRequiredError
-			> = Effect.gen(function* () {
+			const initialize = Effect.fn("WebPlaybackSdk.initialize")(function* () {
 				yield* Ref.set(disconnectedRef, false);
 
 				const current = yield* Ref.get(stateRef);
@@ -108,7 +105,7 @@ export class WebPlaybackSdk extends ServiceMap.Service<WebPlaybackSdk>()(
 					name: "Spotify Pomodoro",
 					getOAuthToken: (cb) => {
 						Effect.runPromise(
-							auth.getToken.pipe(Effect.map((t) => t.accessToken)),
+							auth.getToken().pipe(Effect.map((t) => t.accessToken)),
 						)
 							.then(cb)
 							.catch(() => cb(""));
@@ -182,6 +179,7 @@ export class WebPlaybackSdk extends ServiceMap.Service<WebPlaybackSdk>()(
 					Effect.annotateLogs("deviceId", deviceId),
 				);
 
+				yield* Effect.annotateCurrentSpan("deviceId", deviceId);
 				yield* Ref.set(stateRef, Option.some({ player, deviceId }));
 
 				player.addListener("not_ready", () => {
@@ -191,34 +189,33 @@ export class WebPlaybackSdk extends ServiceMap.Service<WebPlaybackSdk>()(
 				});
 
 				yield* Effect.sleep("500 millis");
-			}).pipe(Effect.withLogSpan("WebPlaybackSdk.initialize"));
+			});
 
-			const ensureDevice: Effect.Effect<
-				string,
-				SdkUnavailableError | PremiumRequiredError
-			> = Effect.gen(function* () {
-				const current = yield* Ref.get(stateRef);
-				if (Option.isSome(current)) {
-					return current.value.deviceId;
-				}
+			const ensureDevice = Effect.fn("WebPlaybackSdk.ensureDevice")(
+				function* () {
+					const current = yield* Ref.get(stateRef);
+					if (Option.isSome(current)) {
+						return current.value.deviceId;
+					}
 
-				yield* initialize;
+					yield* initialize();
 
-				const updated = yield* Ref.get(stateRef);
-				return yield* Option.match(updated, {
-					onNone: () =>
-						Effect.fail(
-							new SdkUnavailableError({
-								reason: "InitFailed",
-								message: "Player state unavailable after initialization",
-							}),
-						),
-					onSome: ({ deviceId }) => Effect.succeed(deviceId),
-				});
-			}).pipe(Effect.withLogSpan("WebPlaybackSdk.ensureDevice"));
+					const updated = yield* Ref.get(stateRef);
+					return yield* Option.match(updated, {
+						onNone: () =>
+							Effect.fail(
+								new SdkUnavailableError({
+									reason: "InitFailed",
+									message: "Player state unavailable after initialization",
+								}),
+							),
+						onSome: ({ deviceId }) => Effect.succeed(deviceId),
+					});
+				},
+			);
 
-			const getDeviceState: Effect.Effect<Option.Option<SdkDeviceState>> =
-				Effect.gen(function* () {
+			const getDeviceState = Effect.fn("WebPlaybackSdk.getDeviceState")(
+				function* () {
 					const state = yield* Ref.get(stateRef);
 					return Option.map(
 						state,
@@ -229,7 +226,8 @@ export class WebPlaybackSdk extends ServiceMap.Service<WebPlaybackSdk>()(
 								playerName: "Spotify Pomodoro",
 							}),
 					);
-				}).pipe(Effect.withLogSpan("WebPlaybackSdk.getDeviceState"));
+				},
+			);
 
 			/**
 			 * Whether the player has been disconnected by Spotify (e.g., another tab took over).
@@ -237,7 +235,11 @@ export class WebPlaybackSdk extends ServiceMap.Service<WebPlaybackSdk>()(
 			 * @since 1.4.0
 			 * @category Services
 			 */
-			const isDisconnected: Effect.Effect<boolean> = Ref.get(disconnectedRef);
+			const isDisconnected = Effect.fn("WebPlaybackSdk.isDisconnected")(
+				function* () {
+					return yield* Ref.get(disconnectedRef);
+				},
+			);
 
 			yield* Effect.logDebug("WebPlaybackSdk initialized");
 

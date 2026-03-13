@@ -30,7 +30,7 @@ describe("Auth Service", () => {
 			Effect.gen(function* () {
 				process.env.AUTH_ENABLED = "";
 				const auth = yield* Auth;
-				const enabled = yield* auth.isEnabled;
+				const enabled = yield* auth.isEnabled();
 				expect(enabled).toBe(false);
 			}).pipe(Effect.provide(Auth.layer)),
 		);
@@ -39,7 +39,7 @@ describe("Auth Service", () => {
 			Effect.gen(function* () {
 				process.env.AUTH_ENABLED = "false";
 				const auth = yield* Auth;
-				const enabled = yield* auth.isEnabled;
+				const enabled = yield* auth.isEnabled();
 				expect(enabled).toBe(false);
 			}).pipe(Effect.provide(Auth.layer)),
 		);
@@ -48,7 +48,7 @@ describe("Auth Service", () => {
 			Effect.gen(function* () {
 				process.env.AUTH_ENABLED = "true";
 				const auth = yield* Auth;
-				const enabled = yield* auth.isEnabled;
+				const enabled = yield* auth.isEnabled();
 				expect(enabled).toBe(true);
 			}).pipe(Effect.provide(Auth.layer)),
 		);
@@ -61,7 +61,7 @@ describe("Auth Service", () => {
 				process.env.AUTH_PASSWORD = "";
 				process.env.AUTH_SECRET = "testsecret12345678901234567890";
 				const auth = yield* Auth;
-				const result = yield* Effect.result(auth.getConfig);
+				const result = yield* Effect.result(auth.getConfig());
 				expect(Result.isFailure(result)).toBe(true);
 				if (Result.isFailure(result)) {
 					expect(result.failure).toBeInstanceOf(AuthConfigError);
@@ -75,7 +75,7 @@ describe("Auth Service", () => {
 				process.env.AUTH_PASSWORD = "testpass";
 				process.env.AUTH_SECRET = "";
 				const auth = yield* Auth;
-				const result = yield* Effect.result(auth.getConfig);
+				const result = yield* Effect.result(auth.getConfig());
 				expect(Result.isFailure(result)).toBe(true);
 			}).pipe(Effect.provide(Auth.layer)),
 		);
@@ -86,7 +86,7 @@ describe("Auth Service", () => {
 				process.env.AUTH_PASSWORD = "testpass";
 				process.env.AUTH_SECRET = "testsecret12345678901234567890";
 				const auth = yield* Auth;
-				const config = yield* auth.getConfig;
+				const config = yield* auth.getConfig();
 				expect(config.password).toBe("testpass");
 				expect(config.enabled).toBe(true);
 			}).pipe(Effect.provide(Auth.layer)),
@@ -98,7 +98,7 @@ describe("Auth Service", () => {
 				process.env.AUTH_PASSWORD = "";
 				process.env.AUTH_SECRET = "";
 				const auth = yield* Auth;
-				const config = yield* auth.getConfig;
+				const config = yield* auth.getConfig();
 				expect(config.enabled).toBe(false);
 			}).pipe(Effect.provide(Auth.layer)),
 		);

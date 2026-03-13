@@ -42,7 +42,7 @@ function isPublicPath(pathname: string): boolean {
 export const onRequest = defineMiddleware(async (context, next) => {
 	const program = Effect.gen(function* () {
 		const auth = yield* Auth;
-		const enabled = yield* auth.isEnabled;
+		const enabled = yield* auth.isEnabled();
 		if (!enabled) return { authenticated: true, enabled: false };
 
 		const { pathname } = context.url;

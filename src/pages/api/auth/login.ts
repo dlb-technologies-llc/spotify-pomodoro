@@ -47,7 +47,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
 	const program = Effect.gen(function* () {
 		const auth = yield* Auth;
-		const enabled = yield* auth.isEnabled;
+		const enabled = yield* auth.isEnabled();
 		if (!enabled) {
 			return {
 				success: false,
@@ -58,7 +58,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
 		yield* auth.validateCredentials(username, password);
 
-		const config = yield* auth.getConfig;
+		const config = yield* auth.getConfig();
 		const cookieValue = yield* auth.createCookie(username);
 
 		return {

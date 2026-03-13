@@ -34,7 +34,7 @@ export class AudioNotification extends ServiceMap.Service<AudioNotification>()(
 				return ctx;
 			});
 
-			const play = Effect.gen(function* () {
+			const play = Effect.fn("AudioNotification.play")(function* () {
 				yield* Effect.logDebug("Playing audio notification");
 				const ctx = yield* getOrCreateContext;
 				yield* Effect.sync(() => {

@@ -44,7 +44,7 @@ export function useTimer() {
 			const audio = yield* AudioNotification;
 
 			yield* timer.setOnTimerEnd(() => {
-				runEffect(audio.play);
+				runEffect(audio.play());
 			});
 
 			const initial = yield* SubscriptionRef.get(timer.state);
@@ -86,7 +86,7 @@ export function useTimer() {
 		await runEffect(
 			Effect.gen(function* () {
 				const timer = yield* Timer;
-				yield* timer.start;
+				yield* timer.start();
 			}),
 		);
 	}, [state]);
@@ -95,7 +95,7 @@ export function useTimer() {
 		await runEffect(
 			Effect.gen(function* () {
 				const timer = yield* Timer;
-				yield* timer.reset;
+				yield* timer.reset();
 			}),
 		);
 	}, []);
@@ -259,7 +259,7 @@ export function useTimer() {
 		await runEffect(
 			Effect.gen(function* () {
 				const timer = yield* Timer;
-				yield* timer.stop;
+				yield* timer.stop();
 			}),
 		);
 	}, [state]);
