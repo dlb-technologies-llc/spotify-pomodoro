@@ -4,7 +4,7 @@
  * @module
  */
 import { eq } from "drizzle-orm";
-import { Effect, Layer, ServiceMap } from "effect";
+import { Effect, Layer, Schema, ServiceMap } from "effect";
 import { breakSessions, DbClient, focusSessions, pomodoros } from "../../db";
 import {
 	BreakSessionNotFoundError,
@@ -12,15 +12,24 @@ import {
 	FocusSessionNotFoundError,
 	PomodoroNotFoundError,
 } from "../errors/DatabaseError";
-import type {
+import {
 	BreakSession,
-	CompleteSessionInput,
-	CreateBreakSessionInput,
-	CreateFocusSessionInput,
+	type CompleteSessionInput,
+	type CreateBreakSessionInput,
+	type CreateFocusSessionInput,
+	DailyActivity,
 	FocusSession,
+	PeriodStats,
 	Pomodoro,
 	SessionStats,
 } from "../schema/Session";
+
+const decodePomodoro = Schema.decodeUnknownSync(Pomodoro);
+const decodeFocusSession = Schema.decodeUnknownSync(FocusSession);
+const decodeBreakSession = Schema.decodeUnknownSync(BreakSession);
+const decodePeriodStats = Schema.decodeUnknownSync(PeriodStats);
+const decodeDailyActivity = Schema.decodeUnknownSync(DailyActivity);
+const decodeSessionStats = Schema.decodeUnknownSync(SessionStats);
 
 /**
  * Repository service for managing pomodoros and sessions.
@@ -42,7 +51,7 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 					const result = yield* Effect.tryPromise({
 						try: async () => {
 							const [row] = await db.insert(pomodoros).values({}).returning();
-							return row as Pomodoro;
+							return decodePomodoro(row);
 						},
 						catch: (error) =>
 							new DatabaseError({
@@ -61,14 +70,14 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 			const getPomodoro = Effect.fn("SessionRepository.getPomodoro")(function* (
 				id: string,
 			) {
-				const result = yield* Effect.tryPromise({
+				const row = yield* Effect.tryPromise({
 					try: async () => {
 						const result = await db
 							.select()
 							.from(pomodoros)
 							.where(eq(pomodoros.id, id))
 							.limit(1);
-						return result[0] as Pomodoro | undefined;
+						return result[0];
 					},
 					catch: (error) =>
 						new DatabaseError({
@@ -76,12 +85,12 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 							cause: error,
 						}),
 				});
-				if (!result) {
+				if (!row) {
 					return yield* Effect.fail(
 						new PomodoroNotFoundError({ pomodoroId: id }),
 					);
 				}
-				return result;
+				return decodePomodoro(row);
 			});
 
 			const completePomodoro = Effect.fn("SessionRepository.completePomodoro")(
@@ -94,10 +103,10 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 						try: async () => {
 							const [result] = await db
 								.update(pomodoros)
-								.set({ completedAt: new Date() })
+								.set({ completedAt: Date.now() })
 								.where(eq(pomodoros.id, id))
 								.returning();
-							return result as Pomodoro;
+							return decodePomodoro(result);
 						},
 						catch: (error) =>
 							new DatabaseError({
@@ -121,10 +130,10 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 							.values({
 								pomodoroId: input.pomodoroId,
 								configuredSeconds: input.configuredSeconds,
-								startedAt: new Date(),
+								startedAt: Date.now(),
 							})
 							.returning();
-						return row as unknown as FocusSession;
+						return decodeFocusSession(row);
 					},
 					catch: (error) =>
 						new DatabaseError({
@@ -144,14 +153,14 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 
 			const getFocusSession = Effect.fn("SessionRepository.getFocusSession")(
 				function* (id: string) {
-					const result = yield* Effect.tryPromise({
+					const row = yield* Effect.tryPromise({
 						try: async () => {
 							const result = await db
 								.select()
 								.from(focusSessions)
 								.where(eq(focusSessions.id, id))
 								.limit(1);
-							return result[0] as unknown as FocusSession | undefined;
+							return result[0];
 						},
 						catch: (error) =>
 							new DatabaseError({
@@ -159,12 +168,12 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 								cause: error,
 							}),
 					});
-					if (!result) {
+					if (!row) {
 						return yield* Effect.fail(
 							new FocusSessionNotFoundError({ sessionId: id }),
 						);
 					}
-					return result;
+					return decodeFocusSession(row);
 				},
 			);
 
@@ -187,12 +196,12 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 							.update(focusSessions)
 							.set({
 								elapsedSeconds: input.elapsedSeconds,
-								completedAt: new Date(),
+								completedAt: Date.now(),
 								completed: true,
 							})
 							.where(eq(focusSessions.id, id))
 							.returning();
-						return result as unknown as FocusSession;
+						return decodeFocusSession(result);
 					},
 					catch: (error) =>
 						new DatabaseError({
@@ -215,10 +224,10 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 							.values({
 								pomodoroId: input.pomodoroId,
 								configuredSeconds: input.configuredSeconds,
-								startedAt: new Date(),
+								startedAt: Date.now(),
 							})
 							.returning();
-						return row as unknown as BreakSession;
+						return decodeBreakSession(row);
 					},
 					catch: (error) =>
 						new DatabaseError({
@@ -238,14 +247,14 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 
 			const getBreakSession = Effect.fn("SessionRepository.getBreakSession")(
 				function* (id: string) {
-					const result = yield* Effect.tryPromise({
+					const row = yield* Effect.tryPromise({
 						try: async () => {
 							const result = await db
 								.select()
 								.from(breakSessions)
 								.where(eq(breakSessions.id, id))
 								.limit(1);
-							return result[0] as unknown as BreakSession | undefined;
+							return result[0];
 						},
 						catch: (error) =>
 							new DatabaseError({
@@ -253,12 +262,12 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 								cause: error,
 							}),
 					});
-					if (!result) {
+					if (!row) {
 						return yield* Effect.fail(
 							new BreakSessionNotFoundError({ sessionId: id }),
 						);
 					}
-					return result;
+					return decodeBreakSession(row);
 				},
 			);
 
@@ -281,12 +290,12 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 							.update(breakSessions)
 							.set({
 								elapsedSeconds: input.elapsedSeconds,
-								completedAt: new Date(),
+								completedAt: Date.now(),
 								completed: true,
 							})
 							.where(eq(breakSessions.id, id))
 							.returning();
-						return result as unknown as BreakSession;
+						return decodeBreakSession(result);
 					},
 					catch: (error) =>
 						new DatabaseError({
@@ -416,7 +425,7 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 								periodPomodoroIds.has(s.pomodoroId),
 							);
 
-							return {
+							return decodePeriodStats({
 								pomodoros: periodPomodoros.length,
 								focusSeconds: periodFocus.reduce(
 									(sum, s) => sum + s.elapsedSeconds,
@@ -436,7 +445,7 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 										sum + Math.max(0, s.elapsedSeconds - s.configuredSeconds),
 									0,
 								),
-							};
+							});
 						};
 
 						const today = computePeriodStats(
@@ -472,7 +481,7 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 						const allPeriodBreak = completedBreak.filter((s) =>
 							allPomodoroIds.has(s.pomodoroId),
 						);
-						const all = {
+						const all = decodePeriodStats({
 							pomodoros: completedPomodoros.length,
 							focusSeconds: allPeriodFocus.reduce(
 								(sum, s) => sum + s.elapsedSeconds,
@@ -492,7 +501,7 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 									sum + Math.max(0, s.elapsedSeconds - s.configuredSeconds),
 								0,
 							),
-						};
+						});
 
 						const dailyActivityMap = new Map<
 							string,
@@ -524,14 +533,16 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 						}
 
 						const dailyActivity = Array.from(dailyActivityMap.entries())
-							.map(([date, data]) => ({
-								date,
-								count: data.count,
-								focusSeconds: data.focusSeconds,
-							}))
+							.map(([date, data]) =>
+								decodeDailyActivity({
+									date,
+									count: data.count,
+									focusSeconds: data.focusSeconds,
+								}),
+							)
 							.sort((a, b) => a.date.localeCompare(b.date));
 
-						return {
+						return decodeSessionStats({
 							totalPomodoros: allPomodoros.length,
 							completedPomodoros: completedPomodoros.length,
 							completedFocusSessions: completedFocus.length,
@@ -551,7 +562,7 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 							year,
 							all,
 							dailyActivity,
-						} as SessionStats;
+						});
 					},
 					catch: (error) =>
 						new DatabaseError({

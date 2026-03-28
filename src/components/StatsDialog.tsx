@@ -5,8 +5,8 @@
  */
 
 import { useMemo, useState } from "react";
+import type { DailyActivity, PeriodStats } from "@/effect/schema/Session";
 import { formatDuration, useStats } from "@/hooks/useStats";
-import type { DailyActivity, PeriodStats } from "@/lib/sessionApi";
 import { cn } from "@/lib/utils";
 import {
 	Dialog,
@@ -222,7 +222,7 @@ function StatCard({ label, value }: StatCardProps) {
  * @category Components
  */
 interface ContributionGraphProps {
-	dailyActivity: DailyActivity[];
+	dailyActivity: readonly DailyActivity[];
 }
 
 /**
