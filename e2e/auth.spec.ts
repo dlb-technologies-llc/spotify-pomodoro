@@ -44,7 +44,7 @@ test.describe("Authentication", () => {
 		await page.getByRole("button", { name: "sign in" }).click();
 		await page.waitForURL("/");
 
-		await page.request.post("/api/auth/logout");
+		await page.evaluate(() => fetch("/api/auth/logout", { method: "POST" }));
 
 		await page.goto("/");
 		await page.waitForURL(/\/login/);

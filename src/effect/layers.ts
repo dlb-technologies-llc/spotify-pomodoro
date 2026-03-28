@@ -6,6 +6,7 @@
 
 import { Layer } from "effect";
 import { FetchHttpClient, HttpClient } from "effect/unstable/http";
+import { DbClientLive } from "@/db";
 import { FrontendTelemetryLayer } from "@/lib/telemetry";
 import { LoggingLayer } from "./logging";
 import { AudioNotification } from "./services/AudioNotification";
@@ -75,8 +76,12 @@ export type MainContext = Layer.Success<typeof MainLayer>;
  * @since 1.4.0
  * @category Layers
  */
+const SessionRepositoryLive = SessionRepository.layer.pipe(
+	Layer.provide(DbClientLive),
+);
+
 export const ServerLayer = Layer.mergeAll(
-	SessionRepository.layer,
+	SessionRepositoryLive,
 	LoggingLayer,
 	TelemetryLive,
 );

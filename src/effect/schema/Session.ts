@@ -6,6 +6,16 @@
 import { Schema, SchemaTransformation } from "effect";
 
 /**
+ * A non-negative integer (>= 0).
+ *
+ * @since 0.5.0
+ * @category Schemas
+ */
+const NonNegativeInt = Schema.Int.pipe(
+	Schema.check(Schema.isGreaterThanOrEqualTo(0)),
+);
+
+/**
  * Transforms a number (epoch milliseconds) to a valid Date object.
  *
  * @since 0.4.0
@@ -28,7 +38,7 @@ const DateFromNumber = Schema.Number.pipe(
  * @category Schemas
  */
 export class Pomodoro extends Schema.Class<Pomodoro>("Pomodoro")({
-	id: Schema.String,
+	id: Schema.NonEmptyString,
 	createdAt: DateFromNumber,
 	completedAt: Schema.NullOr(DateFromNumber),
 }) {}
@@ -40,10 +50,10 @@ export class Pomodoro extends Schema.Class<Pomodoro>("Pomodoro")({
  * @category Schemas
  */
 export class FocusSession extends Schema.Class<FocusSession>("FocusSession")({
-	id: Schema.String,
-	pomodoroId: Schema.String,
-	configuredSeconds: Schema.Number,
-	elapsedSeconds: Schema.Number,
+	id: Schema.NonEmptyString,
+	pomodoroId: Schema.NonEmptyString,
+	configuredSeconds: NonNegativeInt,
+	elapsedSeconds: NonNegativeInt,
 	startedAt: DateFromNumber,
 	completedAt: Schema.NullOr(DateFromNumber),
 	completed: Schema.Boolean,
@@ -65,10 +75,10 @@ export class FocusSession extends Schema.Class<FocusSession>("FocusSession")({
  * @category Schemas
  */
 export class BreakSession extends Schema.Class<BreakSession>("BreakSession")({
-	id: Schema.String,
-	pomodoroId: Schema.String,
-	configuredSeconds: Schema.Number,
-	elapsedSeconds: Schema.Number,
+	id: Schema.NonEmptyString,
+	pomodoroId: Schema.NonEmptyString,
+	configuredSeconds: NonNegativeInt,
+	elapsedSeconds: NonNegativeInt,
 	startedAt: DateFromNumber,
 	completedAt: Schema.NullOr(DateFromNumber),
 	completed: Schema.Boolean,
@@ -92,8 +102,8 @@ export class BreakSession extends Schema.Class<BreakSession>("BreakSession")({
 export class CreateFocusSessionInput extends Schema.Class<CreateFocusSessionInput>(
 	"CreateFocusSessionInput",
 )({
-	pomodoroId: Schema.String,
-	configuredSeconds: Schema.Number,
+	pomodoroId: Schema.NonEmptyString,
+	configuredSeconds: NonNegativeInt,
 }) {}
 
 /**
@@ -105,8 +115,8 @@ export class CreateFocusSessionInput extends Schema.Class<CreateFocusSessionInpu
 export class CreateBreakSessionInput extends Schema.Class<CreateBreakSessionInput>(
 	"CreateBreakSessionInput",
 )({
-	pomodoroId: Schema.String,
-	configuredSeconds: Schema.Number,
+	pomodoroId: Schema.NonEmptyString,
+	configuredSeconds: NonNegativeInt,
 }) {}
 
 /**
@@ -118,7 +128,7 @@ export class CreateBreakSessionInput extends Schema.Class<CreateBreakSessionInpu
 export class CompleteSessionInput extends Schema.Class<CompleteSessionInput>(
 	"CompleteSessionInput",
 )({
-	elapsedSeconds: Schema.Number,
+	elapsedSeconds: NonNegativeInt,
 }) {}
 
 /**
@@ -130,11 +140,11 @@ export class CompleteSessionInput extends Schema.Class<CompleteSessionInput>(
 export class DailyActivity extends Schema.Class<DailyActivity>("DailyActivity")(
 	{
 		/** Date string in YYYY-MM-DD format */
-		date: Schema.String,
+		date: Schema.NonEmptyString,
 		/** Number of pomodoros completed on this day */
-		count: Schema.Number,
+		count: NonNegativeInt,
 		/** Total focus seconds on this day */
-		focusSeconds: Schema.Number,
+		focusSeconds: NonNegativeInt,
 	},
 ) {}
 
@@ -146,15 +156,15 @@ export class DailyActivity extends Schema.Class<DailyActivity>("DailyActivity")(
  */
 export class PeriodStats extends Schema.Class<PeriodStats>("PeriodStats")({
 	/** Pomodoros completed in this period */
-	pomodoros: Schema.Number,
+	pomodoros: NonNegativeInt,
 	/** Focus time in seconds */
-	focusSeconds: Schema.Number,
+	focusSeconds: NonNegativeInt,
 	/** Break time in seconds */
-	breakSeconds: Schema.Number,
+	breakSeconds: NonNegativeInt,
 	/** Focus overtime in seconds */
-	focusOvertimeSeconds: Schema.Number,
+	focusOvertimeSeconds: NonNegativeInt,
 	/** Break overtime in seconds */
-	breakOvertimeSeconds: Schema.Number,
+	breakOvertimeSeconds: NonNegativeInt,
 }) {}
 
 /**
@@ -165,31 +175,31 @@ export class PeriodStats extends Schema.Class<PeriodStats>("PeriodStats")({
  */
 export class SessionStats extends Schema.Class<SessionStats>("SessionStats")({
 	/** Total pomodoro cycles started */
-	totalPomodoros: Schema.Number,
+	totalPomodoros: NonNegativeInt,
 	/** Total pomodoro cycles completed (focus + break done) */
-	completedPomodoros: Schema.Number,
+	completedPomodoros: NonNegativeInt,
 	/** Total completed focus sessions */
-	completedFocusSessions: Schema.Number,
+	completedFocusSessions: NonNegativeInt,
 	/** Total completed break sessions */
-	completedBreakSessions: Schema.Number,
+	completedBreakSessions: NonNegativeInt,
 	/** Total time in focus sessions (seconds) */
-	totalFocusSeconds: Schema.Number,
+	totalFocusSeconds: NonNegativeInt,
 	/** Total time in break sessions (seconds) */
-	totalBreakSeconds: Schema.Number,
+	totalBreakSeconds: NonNegativeInt,
 	/** Total overtime in focus sessions (seconds) */
-	totalFocusOvertimeSeconds: Schema.Number,
+	totalFocusOvertimeSeconds: NonNegativeInt,
 	/** Total overtime in break sessions (seconds) */
-	totalBreakOvertimeSeconds: Schema.Number,
+	totalBreakOvertimeSeconds: NonNegativeInt,
 	/** Current daily streak */
-	currentStreak: Schema.Number,
+	currentStreak: NonNegativeInt,
 	/** Longest ever streak */
-	longestStreak: Schema.Number,
+	longestStreak: NonNegativeInt,
 	/** Pomodoros completed today */
-	todayPomodoros: Schema.Number,
+	todayPomodoros: NonNegativeInt,
 	/** Pomodoros completed this week */
-	thisWeekPomodoros: Schema.Number,
+	thisWeekPomodoros: NonNegativeInt,
 	/** Pomodoros completed this month */
-	thisMonthPomodoros: Schema.Number,
+	thisMonthPomodoros: NonNegativeInt,
 	/** Today's detailed stats */
 	today: PeriodStats,
 	/** This week's detailed stats */

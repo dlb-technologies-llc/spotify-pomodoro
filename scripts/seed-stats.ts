@@ -95,11 +95,11 @@ const createPomodoro = (db: ReturnType<typeof drizzle>, completedAt: Date) =>
 		const totalDuration = (focusElapsed + breakElapsed) * 1000;
 		const focusDuration = focusElapsed * 1000;
 
-		const createdAt = new Date(completedAt.getTime() - totalDuration);
-		const focusStartedAt = createdAt;
-		const focusCompletedAt = new Date(createdAt.getTime() + focusDuration);
-		const breakStartedAt = focusCompletedAt;
-		const breakCompletedAt = completedAt;
+		const createdAtMs = completedAt.getTime() - totalDuration;
+		const focusStartedAtMs = createdAtMs;
+		const focusCompletedAtMs = createdAtMs + focusDuration;
+		const breakStartedAtMs = focusCompletedAtMs;
+		const breakCompletedAtMs = completedAt.getTime();
 
 		yield* Effect.try({
 			try: () =>
@@ -107,8 +107,8 @@ const createPomodoro = (db: ReturnType<typeof drizzle>, completedAt: Date) =>
 					.insert(pomodoros)
 					.values({
 						id: pomodoroId,
-						createdAt,
-						completedAt,
+						createdAt: createdAtMs,
+						completedAt: breakCompletedAtMs,
 					})
 					.run(),
 			catch: (e) => e,
@@ -123,10 +123,10 @@ const createPomodoro = (db: ReturnType<typeof drizzle>, completedAt: Date) =>
 						pomodoroId,
 						configuredSeconds: FOCUS_CONFIG.configuredSeconds,
 						elapsedSeconds: focusElapsed,
-						startedAt: focusStartedAt,
-						completedAt: focusCompletedAt,
+						startedAt: focusStartedAtMs,
+						completedAt: focusCompletedAtMs,
 						completed: true,
-						createdAt: focusStartedAt,
+						createdAt: focusStartedAtMs,
 					})
 					.run(),
 			catch: (e) => e,
@@ -141,10 +141,10 @@ const createPomodoro = (db: ReturnType<typeof drizzle>, completedAt: Date) =>
 						pomodoroId,
 						configuredSeconds: BREAK_CONFIG.configuredSeconds,
 						elapsedSeconds: breakElapsed,
-						startedAt: breakStartedAt,
-						completedAt: breakCompletedAt,
+						startedAt: breakStartedAtMs,
+						completedAt: breakCompletedAtMs,
 						completed: true,
-						createdAt: breakStartedAt,
+						createdAt: breakStartedAtMs,
 					})
 					.run(),
 			catch: (e) => e,

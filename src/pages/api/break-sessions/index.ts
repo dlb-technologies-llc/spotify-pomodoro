@@ -4,8 +4,9 @@
  * @module
  */
 import type { APIRoute } from "astro";
-import { Effect } from "effect";
+import { Cause, Effect, Exit, Schema } from "effect";
 import { ServerLayer } from "@/effect/layers";
+import { BreakSession, CreateBreakSessionInput } from "@/effect/schema/Session";
 import { SessionRepository } from "@/effect/services/SessionRepository";
 
 /**
@@ -16,53 +17,41 @@ import { SessionRepository } from "@/effect/services/SessionRepository";
  * @since 0.2.0
  */
 export const POST: APIRoute = async ({ request }) => {
-	let body: { pomodoroId?: string; configuredSeconds?: number };
-	try {
-		body = await request.json();
-	} catch {
-		return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
-			status: 400,
-			headers: { "Content-Type": "application/json" },
-		});
-	}
-
-	const { pomodoroId, configuredSeconds } = body;
-
-	if (!pomodoroId || typeof configuredSeconds !== "number") {
-		return new Response(
-			JSON.stringify({
-				error: "Missing required fields: pomodoroId, configuredSeconds",
-			}),
-			{
-				status: 400,
-				headers: { "Content-Type": "application/json" },
-			},
-		);
-	}
-
 	const program = Effect.gen(function* () {
+		const body = yield* Effect.tryPromise({
+			try: () => request.json(),
+			catch: () => new Error("Invalid JSON body"),
+		});
+		const input = yield* Schema.decodeUnknownEffect(CreateBreakSessionInput)(
+			body,
+		);
+
 		yield* Effect.logDebug("POST /api/break-sessions").pipe(
-			Effect.annotateLogs("pomodoroId", pomodoroId),
+			Effect.annotateLogs("pomodoroId", input.pomodoroId),
 		);
 		const repo = yield* SessionRepository;
-		return yield* repo.createBreakSession({ pomodoroId, configuredSeconds });
+		const result = yield* repo.createBreakSession(input);
+
+		return Schema.encodeSync(BreakSession)(result);
 	}).pipe(
 		Effect.withSpan("POST /api/break-sessions"),
 		Effect.provide(ServerLayer),
 	);
 
-	const result = await Effect.runPromise(program).catch((error) => ({
-		error: String(error),
-	}));
+	const exit = await Effect.runPromiseExit(program);
 
-	if ("error" in result) {
-		return new Response(JSON.stringify({ error: result.error }), {
-			status: 500,
+	if (Exit.isFailure(exit)) {
+		const error = Cause.squash(exit.cause);
+		const isClientError =
+			Schema.isSchemaError(error) ||
+			(error instanceof Error && error.message === "Invalid JSON body");
+		return new Response(JSON.stringify({ error: String(error) }), {
+			status: isClientError ? 400 : 500,
 			headers: { "Content-Type": "application/json" },
 		});
 	}
 
-	return new Response(JSON.stringify(result), {
+	return new Response(JSON.stringify(exit.value), {
 		status: 201,
 		headers: { "Content-Type": "application/json" },
 	});

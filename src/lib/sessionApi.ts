@@ -4,90 +4,45 @@
  * @module
  */
 
+import type {
+	BreakSession,
+	FocusSession,
+	Pomodoro,
+	SessionStats,
+} from "@/effect/schema/Session";
 import { tracedFetch } from "@/lib/traced-fetch";
 
 /**
- * Pomodoro response from API.
+ * Encoded pomodoro response from API (dates as epoch ms).
  *
- * @since 0.2.0
+ * @since 0.5.0
  * @category Types
  */
-export interface PomodoroResponse {
-	id: string;
-	createdAt: number;
-	completedAt: number | null;
-}
+export type PomodoroEncoded = typeof Pomodoro.Encoded;
 
 /**
- * Focus/Break session response from API.
+ * Encoded focus session response from API (dates as epoch ms).
  *
- * @since 0.2.0
+ * @since 0.5.0
  * @category Types
  */
-export interface SessionResponse {
-	id: string;
-	pomodoroId: string;
-	configuredSeconds: number;
-	elapsedSeconds: number;
-	startedAt: number;
-	completedAt: number | null;
-	completed: boolean;
-	createdAt: number;
-}
+export type FocusSessionEncoded = typeof FocusSession.Encoded;
 
 /**
- * Daily activity record for contribution graph.
+ * Encoded break session response from API (dates as epoch ms).
  *
- * @since 0.3.0
+ * @since 0.5.0
  * @category Types
  */
-export interface DailyActivity {
-	date: string;
-	count: number;
-	focusSeconds: number;
-}
+export type BreakSessionEncoded = typeof BreakSession.Encoded;
 
 /**
- * Stats for a specific time period.
+ * Encoded stats response from API.
  *
- * @since 0.3.0
+ * @since 0.5.0
  * @category Types
  */
-export interface PeriodStats {
-	pomodoros: number;
-	focusSeconds: number;
-	breakSeconds: number;
-	focusOvertimeSeconds: number;
-	breakOvertimeSeconds: number;
-}
-
-/**
- * Stats response from API.
- *
- * @since 0.2.0
- * @category Types
- */
-export interface StatsResponse {
-	totalPomodoros: number;
-	completedPomodoros: number;
-	completedFocusSessions: number;
-	completedBreakSessions: number;
-	totalFocusSeconds: number;
-	totalBreakSeconds: number;
-	totalFocusOvertimeSeconds: number;
-	totalBreakOvertimeSeconds: number;
-	currentStreak: number;
-	longestStreak: number;
-	todayPomodoros: number;
-	thisWeekPomodoros: number;
-	thisMonthPomodoros: number;
-	today: PeriodStats;
-	week: PeriodStats;
-	month: PeriodStats;
-	year: PeriodStats;
-	all: PeriodStats;
-	dailyActivity: DailyActivity[];
-}
+export type SessionStatsEncoded = typeof SessionStats.Encoded;
 
 /**
  * Create a new pomodoro.
@@ -95,7 +50,7 @@ export interface StatsResponse {
  * @since 0.2.0
  * @category API
  */
-export async function createPomodoro(): Promise<PomodoroResponse> {
+export async function createPomodoro(): Promise<PomodoroEncoded> {
 	const response = await tracedFetch(
 		"session.createPomodoro",
 		"/api/pomodoros",
@@ -115,7 +70,7 @@ export async function createPomodoro(): Promise<PomodoroResponse> {
  * @since 0.2.0
  * @category API
  */
-export async function completePomodoro(id: string): Promise<PomodoroResponse> {
+export async function completePomodoro(id: string): Promise<PomodoroEncoded> {
 	const response = await tracedFetch(
 		"session.completePomodoro",
 		`/api/pomodoros/${id}/complete`,
@@ -136,7 +91,7 @@ export async function completePomodoro(id: string): Promise<PomodoroResponse> {
 export async function createFocusSession(
 	pomodoroId: string,
 	configuredSeconds: number,
-): Promise<SessionResponse> {
+): Promise<FocusSessionEncoded> {
 	const response = await tracedFetch(
 		"session.createFocusSession",
 		"/api/focus-sessions",
@@ -161,7 +116,7 @@ export async function createFocusSession(
 export async function completeFocusSession(
 	id: string,
 	elapsedSeconds: number,
-): Promise<SessionResponse> {
+): Promise<FocusSessionEncoded> {
 	const response = await tracedFetch(
 		"session.completeFocusSession",
 		`/api/focus-sessions/${id}/complete`,
@@ -186,7 +141,7 @@ export async function completeFocusSession(
 export async function createBreakSession(
 	pomodoroId: string,
 	configuredSeconds: number,
-): Promise<SessionResponse> {
+): Promise<BreakSessionEncoded> {
 	const response = await tracedFetch(
 		"session.createBreakSession",
 		"/api/break-sessions",
@@ -211,7 +166,7 @@ export async function createBreakSession(
 export async function completeBreakSession(
 	id: string,
 	elapsedSeconds: number,
-): Promise<SessionResponse> {
+): Promise<BreakSessionEncoded> {
 	const response = await tracedFetch(
 		"session.completeBreakSession",
 		`/api/break-sessions/${id}/complete`,
@@ -233,7 +188,7 @@ export async function completeBreakSession(
  * @since 0.2.0
  * @category API
  */
-export async function getStats(): Promise<StatsResponse> {
+export async function getStats(): Promise<SessionStatsEncoded> {
 	const response = await tracedFetch("session.getStats", "/api/stats");
 	if (!response.ok) {
 		throw new Error(`Failed to get stats: ${response.statusText}`);

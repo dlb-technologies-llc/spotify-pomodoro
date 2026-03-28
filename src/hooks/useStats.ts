@@ -4,7 +4,7 @@
  * @module
  */
 import { useCallback, useEffect, useState } from "react";
-import { getStats, type StatsResponse } from "@/lib/sessionApi";
+import { getStats, type SessionStatsEncoded } from "@/lib/sessionApi";
 
 /**
  * Hook for fetching and managing session statistics.
@@ -13,7 +13,7 @@ import { getStats, type StatsResponse } from "@/lib/sessionApi";
  * @category Hooks
  */
 export function useStats() {
-	const [stats, setStats] = useState<StatsResponse | null>(null);
+	const [stats, setStats] = useState<SessionStatsEncoded | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
