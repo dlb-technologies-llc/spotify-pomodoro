@@ -5,7 +5,7 @@
  */
 import { expect, layer } from "@effect/vitest";
 import { Effect, Layer } from "effect";
-import { DbClientTest } from "@/db";
+import { DbClientTest } from "@/db/test";
 import {
 	BreakSessionNotFoundError,
 	FocusSessionNotFoundError,

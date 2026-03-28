@@ -3,8 +3,6 @@
  *
  * @module
  */
-import { readdirSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { Effect, Layer, ServiceMap } from "effect";
@@ -37,37 +35,5 @@ export const DbClientLive = Layer.effect(
 	Effect.sync(() => {
 		const client = createClient({ url: "file:./data/pomodoro.db" });
 		return drizzle(client);
-	}),
-);
-
-/**
- * Test layer using an in-memory SQLite database with migrations applied.
- *
- * @since 2.0.0
- * @category Layers
- */
-export const DbClientTest = Layer.effect(
-	DbClient,
-	Effect.gen(function* () {
-		const client = createClient({ url: ":memory:" });
-		const db = drizzle(client);
-
-		const migrationsDir = resolve(import.meta.dirname, "migrations");
-		const migrationFiles = readdirSync(migrationsDir)
-			.filter((f) => f.endsWith(".sql"))
-			.sort();
-
-		for (const file of migrationFiles) {
-			const sql = readFileSync(resolve(migrationsDir, file), "utf-8");
-			const statements = sql
-				.split("--> statement-breakpoint")
-				.map((s) => s.trim())
-				.filter(Boolean);
-			for (const statement of statements) {
-				yield* Effect.promise(() => client.execute(statement));
-			}
-		}
-
-		return db;
 	}),
 );
