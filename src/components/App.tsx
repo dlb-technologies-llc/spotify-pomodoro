@@ -222,7 +222,12 @@ export function App() {
 						>
 							{sign && <span className="animate-pulse-soft">{sign}</span>}
 
-							<span className="digit-transition inline-block w-[1.4em] text-center">
+							<span
+								className={cn(
+									"digit-transition inline-block text-center",
+									minutes.length > 2 ? "w-[2.1em]" : "w-[1.4em]",
+								)}
+							>
 								{minutes}
 							</span>
 
