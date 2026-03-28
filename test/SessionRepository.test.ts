@@ -4,7 +4,8 @@
  * @module
  */
 import { expect, layer } from "@effect/vitest";
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Schema } from "effect";
+import { FastCheck } from "effect/testing";
 import { DbClientTest } from "@/db/test";
 import {
 	BreakSessionNotFoundError,
@@ -56,13 +57,18 @@ layer(TestLayer)("SessionRepository", (it) => {
 		Effect.gen(function* () {
 			const repo = yield* SessionRepository;
 			const pomodoro = yield* repo.createPomodoro();
-			const input = new CreateFocusSessionInput({
-				pomodoroId: pomodoro.id,
-				configuredSeconds: 1500,
-			});
-			const session = yield* repo.createFocusSession(input);
+			const [focusInput] = FastCheck.sample(
+				Schema.toArbitrary(CreateFocusSessionInput),
+				1,
+			);
+			const session = yield* repo.createFocusSession(
+				new CreateFocusSessionInput({
+					...focusInput,
+					pomodoroId: pomodoro.id,
+				}),
+			);
 			expect(session.pomodoroId).toBe(pomodoro.id);
-			expect(session.configuredSeconds).toBe(1500);
+			expect(session.configuredSeconds).toBe(focusInput.configuredSeconds);
 			expect(session.elapsedSeconds).toBe(0);
 			expect(session.completed).toBe(false);
 			expect(session.completedAt).toBeNull();
@@ -74,19 +80,25 @@ layer(TestLayer)("SessionRepository", (it) => {
 		Effect.gen(function* () {
 			const repo = yield* SessionRepository;
 			const pomodoro = yield* repo.createPomodoro();
-			const input = new CreateFocusSessionInput({
-				pomodoroId: pomodoro.id,
-				configuredSeconds: 1500,
-			});
-			const session = yield* repo.createFocusSession(input);
-			const completeInput = new CompleteSessionInput({
-				elapsedSeconds: 1620,
-			});
+			const [focusInput] = FastCheck.sample(
+				Schema.toArbitrary(CreateFocusSessionInput),
+				1,
+			);
+			const session = yield* repo.createFocusSession(
+				new CreateFocusSessionInput({
+					...focusInput,
+					pomodoroId: pomodoro.id,
+				}),
+			);
+			const [completeInput] = FastCheck.sample(
+				Schema.toArbitrary(CompleteSessionInput),
+				1,
+			);
 			const completed = yield* repo.completeFocusSession(
 				session.id,
-				completeInput,
+				new CompleteSessionInput(completeInput),
 			);
-			expect(completed.elapsedSeconds).toBe(1620);
+			expect(completed.elapsedSeconds).toBe(completeInput.elapsedSeconds);
 			expect(completed.completed).toBe(true);
 			expect(completed.completedAt).toBeInstanceOf(Date);
 		}),
@@ -96,14 +108,19 @@ layer(TestLayer)("SessionRepository", (it) => {
 		Effect.gen(function* () {
 			const repo = yield* SessionRepository;
 			const pomodoro = yield* repo.createPomodoro();
-			const input = new CreateFocusSessionInput({
-				pomodoroId: pomodoro.id,
-				configuredSeconds: 1500,
-			});
-			const created = yield* repo.createFocusSession(input);
+			const [focusInput] = FastCheck.sample(
+				Schema.toArbitrary(CreateFocusSessionInput),
+				1,
+			);
+			const created = yield* repo.createFocusSession(
+				new CreateFocusSessionInput({
+					...focusInput,
+					pomodoroId: pomodoro.id,
+				}),
+			);
 			const fetched = yield* repo.getFocusSession(created.id);
 			expect(fetched.id).toBe(created.id);
-			expect(fetched.configuredSeconds).toBe(1500);
+			expect(fetched.configuredSeconds).toBe(focusInput.configuredSeconds);
 		}),
 	);
 
@@ -111,13 +128,18 @@ layer(TestLayer)("SessionRepository", (it) => {
 		Effect.gen(function* () {
 			const repo = yield* SessionRepository;
 			const pomodoro = yield* repo.createPomodoro();
-			const input = new CreateBreakSessionInput({
-				pomodoroId: pomodoro.id,
-				configuredSeconds: 300,
-			});
-			const session = yield* repo.createBreakSession(input);
+			const [breakInput] = FastCheck.sample(
+				Schema.toArbitrary(CreateBreakSessionInput),
+				1,
+			);
+			const session = yield* repo.createBreakSession(
+				new CreateBreakSessionInput({
+					...breakInput,
+					pomodoroId: pomodoro.id,
+				}),
+			);
 			expect(session.pomodoroId).toBe(pomodoro.id);
-			expect(session.configuredSeconds).toBe(300);
+			expect(session.configuredSeconds).toBe(breakInput.configuredSeconds);
 			expect(session.elapsedSeconds).toBe(0);
 			expect(session.completed).toBe(false);
 			expect(session.completedAt).toBeNull();
@@ -129,19 +151,25 @@ layer(TestLayer)("SessionRepository", (it) => {
 		Effect.gen(function* () {
 			const repo = yield* SessionRepository;
 			const pomodoro = yield* repo.createPomodoro();
-			const input = new CreateBreakSessionInput({
-				pomodoroId: pomodoro.id,
-				configuredSeconds: 300,
-			});
-			const session = yield* repo.createBreakSession(input);
-			const completeInput = new CompleteSessionInput({
-				elapsedSeconds: 350,
-			});
+			const [breakInput] = FastCheck.sample(
+				Schema.toArbitrary(CreateBreakSessionInput),
+				1,
+			);
+			const session = yield* repo.createBreakSession(
+				new CreateBreakSessionInput({
+					...breakInput,
+					pomodoroId: pomodoro.id,
+				}),
+			);
+			const [completeInput] = FastCheck.sample(
+				Schema.toArbitrary(CompleteSessionInput),
+				1,
+			);
 			const completed = yield* repo.completeBreakSession(
 				session.id,
-				completeInput,
+				new CompleteSessionInput(completeInput),
 			);
-			expect(completed.elapsedSeconds).toBe(350);
+			expect(completed.elapsedSeconds).toBe(completeInput.elapsedSeconds);
 			expect(completed.completed).toBe(true);
 			expect(completed.completedAt).toBeInstanceOf(Date);
 		}),
@@ -151,23 +179,26 @@ layer(TestLayer)("SessionRepository", (it) => {
 		Effect.gen(function* () {
 			const repo = yield* SessionRepository;
 			const pomodoro = yield* repo.createPomodoro();
-			const input = new CreateBreakSessionInput({
-				pomodoroId: pomodoro.id,
-				configuredSeconds: 300,
-			});
-			const created = yield* repo.createBreakSession(input);
+			const [breakInput] = FastCheck.sample(
+				Schema.toArbitrary(CreateBreakSessionInput),
+				1,
+			);
+			const created = yield* repo.createBreakSession(
+				new CreateBreakSessionInput({
+					...breakInput,
+					pomodoroId: pomodoro.id,
+				}),
+			);
 			const fetched = yield* repo.getBreakSession(created.id);
 			expect(fetched.id).toBe(created.id);
-			expect(fetched.configuredSeconds).toBe(300);
+			expect(fetched.configuredSeconds).toBe(breakInput.configuredSeconds);
 		}),
 	);
 
 	it.effect("fails with PomodoroNotFoundError for nonexistent pomodoro", () =>
 		Effect.gen(function* () {
 			const repo = yield* SessionRepository;
-			const error = yield* Effect.flip(
-				repo.getPomodoro("nonexistent-pomodoro-id"),
-			);
+			const error = yield* Effect.flip(repo.getPomodoro(crypto.randomUUID()));
 			expect(error).toBeInstanceOf(PomodoroNotFoundError);
 		}),
 	);
@@ -178,7 +209,7 @@ layer(TestLayer)("SessionRepository", (it) => {
 			Effect.gen(function* () {
 				const repo = yield* SessionRepository;
 				const error = yield* Effect.flip(
-					repo.getFocusSession("nonexistent-session-id"),
+					repo.getFocusSession(crypto.randomUUID()),
 				);
 				expect(error).toBeInstanceOf(FocusSessionNotFoundError);
 			}),
@@ -190,7 +221,7 @@ layer(TestLayer)("SessionRepository", (it) => {
 			Effect.gen(function* () {
 				const repo = yield* SessionRepository;
 				const error = yield* Effect.flip(
-					repo.getBreakSession("nonexistent-session-id"),
+					repo.getBreakSession(crypto.randomUUID()),
 				);
 				expect(error).toBeInstanceOf(BreakSessionNotFoundError);
 			}),
@@ -238,15 +269,15 @@ layer(TestLayer)("SessionRepository", (it) => {
 
 	it.effect.prop(
 		"completes focus session with any valid elapsed time",
-		[CompleteSessionInput],
-		([completeInput]) =>
+		[CreateFocusSessionInput, CompleteSessionInput],
+		([focusInput, completeInput]) =>
 			Effect.gen(function* () {
 				const repo = yield* SessionRepository;
 				const pomodoro = yield* repo.createPomodoro();
 				const focus = yield* repo.createFocusSession(
 					new CreateFocusSessionInput({
+						...focusInput,
 						pomodoroId: pomodoro.id,
-						configuredSeconds: 1500,
 					}),
 				);
 				const completed = yield* repo.completeFocusSession(
@@ -261,15 +292,15 @@ layer(TestLayer)("SessionRepository", (it) => {
 
 	it.effect.prop(
 		"completes break session with any valid elapsed time",
-		[CompleteSessionInput],
-		([completeInput]) =>
+		[CreateBreakSessionInput, CompleteSessionInput],
+		([breakInput, completeInput]) =>
 			Effect.gen(function* () {
 				const repo = yield* SessionRepository;
 				const pomodoro = yield* repo.createPomodoro();
 				const breakSession = yield* repo.createBreakSession(
 					new CreateBreakSessionInput({
+						...breakInput,
 						pomodoroId: pomodoro.id,
-						configuredSeconds: 300,
 					}),
 				);
 				const completed = yield* repo.completeBreakSession(
@@ -288,26 +319,45 @@ layer(TestLayer)("SessionRepository (stats)", (it) => {
 		Effect.gen(function* () {
 			const repo = yield* SessionRepository;
 
-			const pomodoro = yield* repo.createPomodoro();
-
-			const focusInput = new CreateFocusSessionInput({
-				pomodoroId: pomodoro.id,
-				configuredSeconds: 1500,
-			});
-			const focus = yield* repo.createFocusSession(focusInput);
-			yield* repo.completeFocusSession(
-				focus.id,
-				new CompleteSessionInput({ elapsedSeconds: 1600 }),
+			const [focusCreate] = FastCheck.sample(
+				Schema.toArbitrary(CreateFocusSessionInput),
+				1,
+			);
+			const [focusComplete] = FastCheck.sample(
+				Schema.toArbitrary(CompleteSessionInput),
+				1,
+			);
+			const [breakCreate] = FastCheck.sample(
+				Schema.toArbitrary(CreateBreakSessionInput),
+				1,
+			);
+			const [breakComplete] = FastCheck.sample(
+				Schema.toArbitrary(CompleteSessionInput),
+				1,
 			);
 
-			const breakInput = new CreateBreakSessionInput({
-				pomodoroId: pomodoro.id,
-				configuredSeconds: 300,
-			});
-			const breakSession = yield* repo.createBreakSession(breakInput);
+			const pomodoro = yield* repo.createPomodoro();
+
+			const focus = yield* repo.createFocusSession(
+				new CreateFocusSessionInput({
+					...focusCreate,
+					pomodoroId: pomodoro.id,
+				}),
+			);
+			yield* repo.completeFocusSession(
+				focus.id,
+				new CompleteSessionInput(focusComplete),
+			);
+
+			const breakSession = yield* repo.createBreakSession(
+				new CreateBreakSessionInput({
+					...breakCreate,
+					pomodoroId: pomodoro.id,
+				}),
+			);
 			yield* repo.completeBreakSession(
 				breakSession.id,
-				new CompleteSessionInput({ elapsedSeconds: 320 }),
+				new CompleteSessionInput(breakComplete),
 			);
 
 			yield* repo.completePomodoro(pomodoro.id);
@@ -317,10 +367,20 @@ layer(TestLayer)("SessionRepository (stats)", (it) => {
 			expect(stats.completedPomodoros).toBe(1);
 			expect(stats.completedFocusSessions).toBe(1);
 			expect(stats.completedBreakSessions).toBe(1);
-			expect(stats.totalFocusSeconds).toBe(1600);
-			expect(stats.totalBreakSeconds).toBe(320);
-			expect(stats.totalFocusOvertimeSeconds).toBe(100);
-			expect(stats.totalBreakOvertimeSeconds).toBe(20);
+			expect(stats.totalFocusSeconds).toBe(focusComplete.elapsedSeconds);
+			expect(stats.totalBreakSeconds).toBe(breakComplete.elapsedSeconds);
+			expect(stats.totalFocusOvertimeSeconds).toBe(
+				Math.max(
+					0,
+					focusComplete.elapsedSeconds - focusCreate.configuredSeconds,
+				),
+			);
+			expect(stats.totalBreakOvertimeSeconds).toBe(
+				Math.max(
+					0,
+					breakComplete.elapsedSeconds - breakCreate.configuredSeconds,
+				),
+			);
 		}),
 	);
 });

@@ -4,6 +4,7 @@
  * @module
  */
 import { describe, expect, it } from "@effect/vitest";
+import { Effect, Schema } from "effect";
 import type {
 	PomodoroRow,
 	SessionRow,
@@ -691,6 +692,129 @@ describe("computeStats", () => {
 
 			expect(result.dailyActivity).toEqual([]);
 		});
+	});
+
+	describe("property-based invariants", () => {
+		/** Epoch millis constrained to valid Date range (2020-01-01 to 2030-01-01). */
+		const EpochMillis = Schema.Int.pipe(
+			Schema.check(Schema.isGreaterThanOrEqualTo(1577836800000)),
+			Schema.check(Schema.isLessThanOrEqualTo(1893456000000)),
+		);
+
+		/**
+		 * Test-only schema matching PomodoroRow shape.
+		 * PomodoroRow is a plain TS type without a production Schema.
+		 */
+		const PomodoroRowSchema = Schema.Struct({
+			id: Schema.NonEmptyString,
+			createdAt: EpochMillis,
+			completedAt: Schema.NullOr(EpochMillis),
+		});
+
+		/**
+		 * Test-only schema matching SessionRow shape.
+		 * SessionRow is a plain TS type without a production Schema.
+		 */
+		const SessionRowSchema = Schema.Struct({
+			pomodoroId: Schema.NonEmptyString,
+			configuredSeconds: Schema.Int.pipe(
+				Schema.check(Schema.isGreaterThanOrEqualTo(0)),
+			),
+			elapsedSeconds: Schema.Int.pipe(
+				Schema.check(Schema.isGreaterThanOrEqualTo(0)),
+			),
+			completedAt: Schema.NullOr(EpochMillis),
+			completed: Schema.Boolean,
+		});
+
+		it.effect.prop(
+			"totalPomodoros equals input array length",
+			[Schema.Array(PomodoroRowSchema)],
+			([generatedPomodoros]) =>
+				Effect.sync(() => {
+					const result = computeStats(generatedPomodoros, [], [], NOW);
+					expect(result.totalPomodoros).toBe(generatedPomodoros.length);
+				}),
+		);
+
+		it.effect.prop(
+			"completedPomodoros never exceeds totalPomodoros",
+			[Schema.Array(PomodoroRowSchema)],
+			([generatedPomodoros]) =>
+				Effect.sync(() => {
+					const result = computeStats(generatedPomodoros, [], [], NOW);
+					expect(result.completedPomodoros).toBeLessThanOrEqual(
+						result.totalPomodoros,
+					);
+				}),
+		);
+
+		it.effect.prop(
+			"overtime never exceeds total time",
+			[
+				Schema.Array(PomodoroRowSchema),
+				Schema.Array(SessionRowSchema),
+				Schema.Array(SessionRowSchema),
+			],
+			([generatedPomodoros, generatedFocus, generatedBreaks]) =>
+				Effect.sync(() => {
+					const result = computeStats(
+						generatedPomodoros,
+						generatedFocus,
+						generatedBreaks,
+						NOW,
+					);
+					expect(result.totalFocusOvertimeSeconds).toBeLessThanOrEqual(
+						result.totalFocusSeconds,
+					);
+					expect(result.totalBreakOvertimeSeconds).toBeLessThanOrEqual(
+						result.totalBreakSeconds,
+					);
+				}),
+		);
+
+		it.effect.prop(
+			"currentStreak never exceeds longestStreak",
+			[Schema.Array(PomodoroRowSchema)],
+			([generatedPomodoros]) =>
+				Effect.sync(() => {
+					const result = computeStats(generatedPomodoros, [], [], NOW);
+					expect(result.currentStreak).toBeLessThanOrEqual(
+						result.longestStreak,
+					);
+				}),
+		);
+
+		it.effect.prop(
+			"all period stats are non-negative",
+			[
+				Schema.Array(PomodoroRowSchema),
+				Schema.Array(SessionRowSchema),
+				Schema.Array(SessionRowSchema),
+			],
+			([generatedPomodoros, generatedFocus, generatedBreaks]) =>
+				Effect.sync(() => {
+					const result = computeStats(
+						generatedPomodoros,
+						generatedFocus,
+						generatedBreaks,
+						NOW,
+					);
+					for (const period of [
+						result.today,
+						result.week,
+						result.month,
+						result.year,
+						result.all,
+					]) {
+						expect(period.pomodoros).toBeGreaterThanOrEqual(0);
+						expect(period.focusSeconds).toBeGreaterThanOrEqual(0);
+						expect(period.breakSeconds).toBeGreaterThanOrEqual(0);
+						expect(period.focusOvertimeSeconds).toBeGreaterThanOrEqual(0);
+						expect(period.breakOvertimeSeconds).toBeGreaterThanOrEqual(0);
+					}
+				}),
+		);
 	});
 
 	describe("aggregate totals", () => {
