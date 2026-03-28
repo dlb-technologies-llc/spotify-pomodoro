@@ -15,11 +15,11 @@ export const pomodoros = sqliteTable("pomodoros", {
 	id: text("id")
 		.primaryKey()
 		.$defaultFn(() => crypto.randomUUID()),
-	createdAt: integer("created_at", { mode: "timestamp_ms" })
+	createdAt: integer("created_at", { mode: "number" })
 		.notNull()
-		.$defaultFn(() => new Date()),
+		.$defaultFn(() => Date.now()),
 	/** When the full pomodoro cycle (focus + break) was completed */
-	completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+	completedAt: integer("completed_at", { mode: "number" }),
 });
 
 /**
@@ -39,13 +39,13 @@ export const focusSessions = sqliteTable("focus_sessions", {
 	configuredSeconds: integer("configured_seconds").notNull(),
 	/** Actual time spent (could be less, equal, or more than configured) */
 	elapsedSeconds: integer("elapsed_seconds").notNull().default(0),
-	startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
-	completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+	startedAt: integer("started_at", { mode: "number" }).notNull(),
+	completedAt: integer("completed_at", { mode: "number" }),
 	/** Whether user completed the session (vs abandoned/skipped) */
 	completed: integer("completed", { mode: "boolean" }).notNull().default(false),
-	createdAt: integer("created_at", { mode: "timestamp_ms" })
+	createdAt: integer("created_at", { mode: "number" })
 		.notNull()
-		.$defaultFn(() => new Date()),
+		.$defaultFn(() => Date.now()),
 });
 
 /**
@@ -65,47 +65,11 @@ export const breakSessions = sqliteTable("break_sessions", {
 	configuredSeconds: integer("configured_seconds").notNull(),
 	/** Actual time spent (could be less, equal, or more than configured) */
 	elapsedSeconds: integer("elapsed_seconds").notNull().default(0),
-	startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
-	completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+	startedAt: integer("started_at", { mode: "number" }).notNull(),
+	completedAt: integer("completed_at", { mode: "number" }),
 	/** Whether user completed the session (vs abandoned/skipped) */
 	completed: integer("completed", { mode: "boolean" }).notNull().default(false),
-	createdAt: integer("created_at", { mode: "timestamp_ms" })
+	createdAt: integer("created_at", { mode: "number" })
 		.notNull()
-		.$defaultFn(() => new Date()),
+		.$defaultFn(() => Date.now()),
 });
-
-/**
- * Type inference for pomodoro records.
- *
- * @since 0.2.0
- * @category Types
- */
-export type Pomodoro = typeof pomodoros.$inferSelect;
-export type NewPomodoro = typeof pomodoros.$inferInsert;
-
-/**
- * Type inference for focus session records.
- *
- * @since 0.2.0
- * @category Types
- */
-export type FocusSession = typeof focusSessions.$inferSelect;
-export type NewFocusSession = typeof focusSessions.$inferInsert;
-
-/**
- * Type inference for break session records.
- *
- * @since 0.2.0
- * @category Types
- */
-export type BreakSession = typeof breakSessions.$inferSelect;
-export type NewBreakSession = typeof breakSessions.$inferInsert;
-
-/**
- * Helper to calculate overtime (derived, not stored).
- *
- * @since 0.2.0
- * @category Helpers
- */
-export const getOvertime = (session: FocusSession | BreakSession) =>
-	Math.max(0, session.elapsedSeconds - session.configuredSeconds);

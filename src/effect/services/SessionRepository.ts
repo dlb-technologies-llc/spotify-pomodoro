@@ -3,11 +3,9 @@
  *
  * @module
  */
-import { createClient } from "@libsql/client";
 import { eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/libsql";
 import { Effect, Layer, ServiceMap } from "effect";
-import { breakSessions, focusSessions, pomodoros } from "../../db/schema";
+import { breakSessions, DbClient, focusSessions, pomodoros } from "../../db";
 import {
 	BreakSessionNotFoundError,
 	DatabaseError,
@@ -25,17 +23,6 @@ import type {
 } from "../schema/Session";
 
 /**
- * Database client singleton for server-side operations.
- *
- * @since 0.2.0
- * @category Database
- */
-const getDb = () => {
-	const client = createClient({ url: "file:./data/pomodoro.db" });
-	return drizzle(client);
-};
-
-/**
  * Repository service for managing pomodoros and sessions.
  *
  * @since 0.2.0
@@ -46,7 +33,7 @@ export class SessionRepository extends ServiceMap.Service<SessionRepository>()(
 	{
 		make: Effect.gen(function* () {
 			yield* Effect.logDebug("SessionRepository initializing");
-			const db = getDb();
+			const db = yield* DbClient;
 			yield* Effect.logDebug("SessionRepository initialized");
 
 			const createPomodoro = Effect.fn("SessionRepository.createPomodoro")(

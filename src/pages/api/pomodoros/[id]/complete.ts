@@ -4,8 +4,9 @@
  * @module
  */
 import type { APIRoute } from "astro";
-import { Effect } from "effect";
+import { Effect, Exit, Schema } from "effect";
 import { ServerLayer } from "@/effect/layers";
+import { Pomodoro } from "@/effect/schema/Session";
 import { SessionRepository } from "@/effect/services/SessionRepository";
 
 /**
@@ -28,24 +29,28 @@ export const POST: APIRoute = async ({ params }) => {
 			Effect.annotateLogs("pomodoroId", id),
 		);
 		const repo = yield* SessionRepository;
-		return yield* repo.completePomodoro(id);
+		const result = yield* repo.completePomodoro(id);
+
+		return Schema.encodeSync(Pomodoro)(result);
 	}).pipe(
 		Effect.withSpan("POST /api/pomodoros/:id/complete"),
 		Effect.provide(ServerLayer),
 	);
 
-	const result = await Effect.runPromise(program).catch((error) => ({
-		error: String(error),
-	}));
+	const exit = await Effect.runPromiseExit(program);
 
-	if ("error" in result) {
-		return new Response(JSON.stringify({ error: result.error }), {
-			status: 500,
-			headers: { "Content-Type": "application/json" },
-		});
+	if (Exit.isFailure(exit)) {
+		const reason = exit.cause.reasons?.[0];
+		return new Response(
+			JSON.stringify({ error: String(reason ?? exit.cause) }),
+			{
+				status: 500,
+				headers: { "Content-Type": "application/json" },
+			},
+		);
 	}
 
-	return new Response(JSON.stringify(result), {
+	return new Response(JSON.stringify(exit.value), {
 		status: 200,
 		headers: { "Content-Type": "application/json" },
 	});

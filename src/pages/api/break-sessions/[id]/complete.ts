@@ -4,8 +4,9 @@
  * @module
  */
 import type { APIRoute } from "astro";
-import { Effect } from "effect";
+import { Cause, Effect, Exit, Schema } from "effect";
 import { ServerLayer } from "@/effect/layers";
+import { BreakSession, CompleteSessionInput } from "@/effect/schema/Session";
 import { SessionRepository } from "@/effect/services/SessionRepository";
 
 /**
@@ -25,52 +26,43 @@ export const POST: APIRoute = async ({ params, request }) => {
 		});
 	}
 
-	let body: { elapsedSeconds?: number };
-	try {
-		body = await request.json();
-	} catch {
-		return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
-			status: 400,
-			headers: { "Content-Type": "application/json" },
-		});
-	}
-
-	const { elapsedSeconds } = body;
-
-	if (typeof elapsedSeconds !== "number") {
-		return new Response(
-			JSON.stringify({ error: "Missing required field: elapsedSeconds" }),
-			{
-				status: 400,
-				headers: { "Content-Type": "application/json" },
-			},
-		);
-	}
-
 	const program = Effect.gen(function* () {
+		const body = yield* Effect.tryPromise({
+			try: () => request.json(),
+			catch: () => new Error("Invalid JSON body"),
+		});
+		const input = yield* Schema.decodeUnknownEffect(CompleteSessionInput)(body);
+
 		yield* Effect.logDebug("POST /api/break-sessions/:id/complete").pipe(
 			Effect.annotateLogs("sessionId", id),
-			Effect.annotateLogs("elapsedSeconds", elapsedSeconds),
+			Effect.annotateLogs("elapsedSeconds", input.elapsedSeconds),
 		);
 		const repo = yield* SessionRepository;
-		return yield* repo.completeBreakSession(id, { elapsedSeconds });
+		const result = yield* repo.completeBreakSession(id, input);
+
+		return Schema.encodeSync(BreakSession)(result);
 	}).pipe(
 		Effect.withSpan("POST /api/break-sessions/:id/complete"),
 		Effect.provide(ServerLayer),
 	);
 
-	const result = await Effect.runPromise(program).catch((error) => ({
-		error: String(error),
-	}));
+	const exit = await Effect.runPromiseExit(program);
 
-	if ("error" in result) {
-		return new Response(JSON.stringify({ error: result.error }), {
+	if (Exit.isFailure(exit)) {
+		const error = Cause.squash(exit.cause);
+		if (Schema.isSchemaError(error)) {
+			return new Response(JSON.stringify({ error: String(error) }), {
+				status: 400,
+				headers: { "Content-Type": "application/json" },
+			});
+		}
+		return new Response(JSON.stringify({ error: String(error) }), {
 			status: 500,
 			headers: { "Content-Type": "application/json" },
 		});
 	}
 
-	return new Response(JSON.stringify(result), {
+	return new Response(JSON.stringify(exit.value), {
 		status: 200,
 		headers: { "Content-Type": "application/json" },
 	});
