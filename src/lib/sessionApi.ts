@@ -56,6 +56,7 @@ export async function createPomodoro(): Promise<PomodoroEncoded> {
 		"/api/pomodoros",
 		{
 			method: "POST",
+			headers: { "Content-Type": "application/json" },
 		},
 	);
 	if (!response.ok) {
@@ -74,7 +75,7 @@ export async function completePomodoro(id: string): Promise<PomodoroEncoded> {
 	const response = await tracedFetch(
 		"session.completePomodoro",
 		`/api/pomodoros/${id}/complete`,
-		{ method: "POST" },
+		{ method: "POST", headers: { "Content-Type": "application/json" } },
 	);
 	if (!response.ok) {
 		throw new Error(`Failed to complete pomodoro: ${response.statusText}`);
