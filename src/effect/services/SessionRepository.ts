@@ -30,7 +30,7 @@ import {
  * @since 1.3.0
  * @category Types
  */
-type PomodoroRow = {
+export type PomodoroRow = {
 	readonly id: string;
 	readonly createdAt: number;
 	readonly completedAt: number | null;
@@ -42,7 +42,7 @@ type PomodoroRow = {
  * @since 1.3.0
  * @category Types
  */
-type SessionRow = {
+export type SessionRow = {
 	readonly pomodoroId: string;
 	readonly configuredSeconds: number;
 	readonly elapsedSeconds: number;

@@ -50,14 +50,11 @@ export const POST: APIRoute = async ({ params, request }) => {
 
 	if (Exit.isFailure(exit)) {
 		const error = Cause.squash(exit.cause);
-		if (Schema.isSchemaError(error)) {
-			return new Response(JSON.stringify({ error: String(error) }), {
-				status: 400,
-				headers: { "Content-Type": "application/json" },
-			});
-		}
+		const isClientError =
+			Schema.isSchemaError(error) ||
+			(error instanceof Error && error.message === "Invalid JSON body");
 		return new Response(JSON.stringify({ error: String(error) }), {
-			status: 500,
+			status: isClientError ? 400 : 500,
 			headers: { "Content-Type": "application/json" },
 		});
 	}

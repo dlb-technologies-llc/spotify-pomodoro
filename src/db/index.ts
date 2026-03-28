@@ -3,7 +3,7 @@
  *
  * @module
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
@@ -52,20 +52,20 @@ export const DbClientTest = Layer.effect(
 		const client = createClient({ url: ":memory:" });
 		const db = drizzle(client);
 
-		const migrationPath = resolve(
-			import.meta.dirname,
-			"migrations",
-			"0000_misty_tyrannus.sql",
-		);
-		const migrationSql = readFileSync(migrationPath, "utf-8");
+		const migrationsDir = resolve(import.meta.dirname, "migrations");
+		const migrationFiles = readdirSync(migrationsDir)
+			.filter((f) => f.endsWith(".sql"))
+			.sort();
 
-		const statements = migrationSql
-			.split("--> statement-breakpoint")
-			.map((s) => s.trim())
-			.filter(Boolean);
-
-		for (const statement of statements) {
-			yield* Effect.promise(() => client.execute(statement));
+		for (const file of migrationFiles) {
+			const sql = readFileSync(resolve(migrationsDir, file), "utf-8");
+			const statements = sql
+				.split("--> statement-breakpoint")
+				.map((s) => s.trim())
+				.filter(Boolean);
+			for (const statement of statements) {
+				yield* Effect.promise(() => client.execute(statement));
+			}
 		}
 
 		return db;

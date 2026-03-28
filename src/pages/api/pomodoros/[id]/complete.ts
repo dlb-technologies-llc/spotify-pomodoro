@@ -4,7 +4,7 @@
  * @module
  */
 import type { APIRoute } from "astro";
-import { Effect, Exit, Schema } from "effect";
+import { Cause, Effect, Exit, Schema } from "effect";
 import { ServerLayer } from "@/effect/layers";
 import { Pomodoro } from "@/effect/schema/Session";
 import { SessionRepository } from "@/effect/services/SessionRepository";
@@ -40,14 +40,11 @@ export const POST: APIRoute = async ({ params }) => {
 	const exit = await Effect.runPromiseExit(program);
 
 	if (Exit.isFailure(exit)) {
-		const reason = exit.cause.reasons?.[0];
-		return new Response(
-			JSON.stringify({ error: String(reason ?? exit.cause) }),
-			{
-				status: 500,
-				headers: { "Content-Type": "application/json" },
-			},
-		);
+		const error = Cause.squash(exit.cause);
+		return new Response(JSON.stringify({ error: String(error) }), {
+			status: 500,
+			headers: { "Content-Type": "application/json" },
+		});
 	}
 
 	return new Response(JSON.stringify(exit.value), {

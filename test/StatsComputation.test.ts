@@ -4,21 +4,11 @@
  * @module
  */
 import { describe, expect, it } from "@effect/vitest";
+import type {
+	PomodoroRow,
+	SessionRow,
+} from "@/effect/services/SessionRepository";
 import { computeStats } from "@/effect/services/SessionRepository";
-
-type PomodoroRow = {
-	readonly id: string;
-	readonly createdAt: number;
-	readonly completedAt: number | null;
-};
-
-type SessionRow = {
-	readonly pomodoroId: string;
-	readonly configuredSeconds: number;
-	readonly elapsedSeconds: number;
-	readonly completedAt: number | null;
-	readonly completed: boolean;
-};
 
 /** Fixed reference date: Wednesday 2025-06-18T12:00:00Z */
 const NOW = new Date("2025-06-18T12:00:00Z");
