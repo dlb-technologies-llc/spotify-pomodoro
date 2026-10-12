@@ -21,6 +21,7 @@ import { SettingsStore } from "./SettingsStore";
 import { SpotifyAuth } from "./SpotifyAuth";
 import { SpotifyClient } from "./SpotifyClient";
 import { Timer } from "./Timer";
+import { Toasts } from "./Toasts";
 
 /**
  * Runtime holding every browser service.
@@ -107,7 +108,11 @@ export const settingsAtom = runtime.subscriptionRef(
  * @category Settings
  */
 export const saveSettingsAtom = runtime.fn((next: Settings) =>
-	Pomodoro.use((pomodoro) => pomodoro.updateSettings(() => next)),
+	Pomodoro.use((pomodoro) => pomodoro.updateSettings(() => next)).pipe(
+		Effect.andThen(
+			Toasts.use((toasts) => toasts.show("success", "Settings saved")),
+		),
+	),
 );
 
 /**
@@ -150,6 +155,18 @@ const viewerTimeZone = () =>
 	Option.getOrUndefined(
 		DateTime.zoneMakeNamed(Intl.DateTimeFormat().resolvedOptions().timeZone),
 	);
+
+/**
+ * Recording calls waiting for the server, e.g. while offline.
+ *
+ * @since 2.1.0
+ * @category Stats
+ */
+export const pendingSyncAtom = runtime.atom(
+	Stream.unwrap(
+		Effect.map(SessionRecorder, (recorder) => recorder.pendingCount),
+	),
+);
 
 /**
  * Pomodoros completed today, refreshed whenever one completes.
@@ -321,23 +338,23 @@ export const togglePlaybackAtom = runtime.fn(() =>
 );
 
 /**
- * Dismisses the playback error.
+ * Messages currently on screen.
  *
- * @since 2.0.0
- * @category Spotify
+ * @since 2.1.0
+ * @category Toasts
  */
-export const clearPlaybackErrorAtom = runtime.fn(() =>
-	Playback.use((playback) => playback.clearError),
+export const toastsAtom = runtime.subscriptionRef(
+	Effect.map(Toasts, (toasts) => toasts.toasts),
 );
 
 /**
- * Dismisses the "playback moved to another tab" notice.
+ * Removes a message.
  *
- * @since 2.0.0
- * @category Spotify
+ * @since 2.1.0
+ * @category Toasts
  */
-export const clearTabTookOverAtom = runtime.fn(() =>
-	Playback.use((playback) => playback.clearTabTookOver),
+export const dismissToastAtom = runtime.fn((id: number) =>
+	Toasts.use((toasts) => toasts.dismiss(id)),
 );
 
 /**
@@ -419,25 +436,76 @@ export const importDataAtom = runtime.fn((text: string) =>
 );
 
 /**
- * Color theme.
+ * Whether the first-run walkthrough has been seen.
  *
- * @since 2.0.0
- * @category Theme
+ * @since 2.1.0
+ * @category Onboarding
  */
-export const Theme = Schema.Literals(["light", "dark"]);
+export const onboardedAtom = Atom.kvs({
+	runtime: Atom.runtime(BrowserKeyValueStore.layerLocalStorage),
+	key: "pomodoro_onboarded",
+	schema: Schema.Boolean,
+	defaultValue: () => false,
+});
 
 /**
- * Persisted color theme, defaulting to the system preference.
+ * Theme preference: follow the system, or a fixed choice.
+ *
+ * @since 2.1.0
+ * @category Theme
+ */
+export const ThemePreference = Schema.Literals(["system", "light", "dark"]);
+
+/**
+ * @since 2.1.0
+ * @category Theme
+ */
+export type ThemePreference = typeof ThemePreference.Type;
+
+/**
+ * Storage key for the theme preference; also read by the inline script that
+ * applies the theme before the app loads.
+ *
+ * @since 2.1.0
+ * @category Theme
+ */
+export const THEME_STORAGE_KEY = "lofi-pomodoro-theme";
+
+/**
+ * Persisted theme preference, following the system by default.
  *
  * @since 0.0.1
  * @category Theme
  */
-export const themeAtom = Atom.kvs({
+export const themePreferenceAtom = Atom.kvs({
 	runtime: Atom.runtime(BrowserKeyValueStore.layerLocalStorage),
-	key: "lofi-pomodoro-theme",
-	schema: Theme,
-	defaultValue: () =>
-		window.matchMedia("(prefers-color-scheme: dark)").matches
-			? "dark"
-			: "light",
+	key: THEME_STORAGE_KEY,
+	schema: ThemePreference,
+	defaultValue: (): ThemePreference => "system",
+});
+
+/**
+ * Whether the system prefers a dark theme, updated live.
+ *
+ * @since 2.1.0
+ * @category Theme
+ */
+export const systemDarkAtom = Atom.make((get) => {
+	const query = window.matchMedia("(prefers-color-scheme: dark)");
+	const onChange = (event: MediaQueryListEvent) => get.setSelf(event.matches);
+	query.addEventListener("change", onChange);
+	get.addFinalizer(() => query.removeEventListener("change", onChange));
+	return query.matches;
+});
+
+/**
+ * The theme in effect.
+ *
+ * @since 2.1.0
+ * @category Theme
+ */
+export const themeAtom = Atom.make((get) => {
+	const preference = get(themePreferenceAtom);
+	if (preference !== "system") return preference;
+	return get(systemDarkAtom) ? "dark" : "light";
 });

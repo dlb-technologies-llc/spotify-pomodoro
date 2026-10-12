@@ -26,9 +26,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stats Data tab: JSON and CSV export, JSON import (#62)
 - Weekly summary, streak-at-risk nudge, focus per day/week chart, weekday × hour heatmap, and average overtime (#62)
 - Hourly cleanup completes or removes pomodoros left unfinished for a day (#62)
+- Installable app (manifest, icons, service worker); loads offline (#63)
+- Recordings made offline are queued and synced in order, with their real times, once back online (#63)
+- Toasts for success, info, and error messages (#63)
+- First-run walkthrough (#63)
+- Screen-reader announcements for phase changes; popovers close on Escape or outside click and return focus; reduced motion is honored (#63)
 
 ### Changed
 
+- The theme follows the system until you pick one (#63)
+- Light-theme colors and faint text meet WCAG AA contrast (#63)
+- The timer fits phone screens on one line (#63)
 - The current streak stays alive until the end of today instead of resetting to 0 each morning (#62)
 
 ### Fixed

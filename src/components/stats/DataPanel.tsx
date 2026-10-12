@@ -24,7 +24,7 @@ export function DataPanel({ onImported }: { readonly onImported: () => void }) {
 	return (
 		<div className="space-y-5 text-sm">
 			<section className="space-y-2">
-				<h3 className="text-xs uppercase tracking-widest text-muted-foreground/70">
+				<h3 className="text-xs uppercase tracking-widest text-muted-foreground/90">
 					Export
 				</h3>
 				<div className="flex gap-2">
@@ -35,13 +35,13 @@ export function DataPanel({ onImported }: { readonly onImported: () => void }) {
 						CSV
 					</a>
 				</div>
-				<p className="text-xs text-muted-foreground/60">
+				<p className="text-xs text-muted-foreground/90">
 					JSON keeps everything and can be imported again; CSV has one row per
 					pomodoro.
 				</p>
 			</section>
 			<section className="space-y-2">
-				<h3 className="text-xs uppercase tracking-widest text-muted-foreground/70">
+				<h3 className="text-xs uppercase tracking-widest text-muted-foreground/90">
 					Import
 				</h3>
 				<label className="block">

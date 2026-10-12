@@ -45,7 +45,7 @@ export function PresetSelector({ config }: { readonly config: TimerConfig }) {
 							"border border-transparent",
 							isActive
 								? "bg-primary/15 text-primary border-primary/20"
-								: "text-muted-foreground/50 hover:text-muted-foreground hover:bg-secondary/30",
+								: "text-muted-foreground/90 hover:text-muted-foreground hover:bg-secondary/30",
 						)}
 					>
 						<span className="relative z-10">{LABELS[preset]}</span>
@@ -53,7 +53,7 @@ export function PresetSelector({ config }: { readonly config: TimerConfig }) {
 							className={cn(
 								"absolute inset-x-0 -bottom-5 text-[10px] font-mono",
 								"opacity-0 group-hover:opacity-100 transition-opacity duration-200",
-								"text-muted-foreground/40",
+								"text-muted-foreground/90",
 							)}
 						>
 							{focusSeconds / 60} / {breakSeconds / 60}

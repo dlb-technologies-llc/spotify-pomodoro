@@ -108,7 +108,7 @@ When enabled, all routes require login. The login page appears at `/login`.
 | `F`               | Skip to focus (during break) |
 | `R`               | Reset timer (when stopped)   |
 
-Every shortcut also has an on-screen button, so the timer works by touch. The countdown shows in the tab title, a desktop notification appears when a phase ends in the background, and the screen stays awake while the timer runs. Reloading the page resumes the timer where it was.
+Every shortcut also has an on-screen button, so the timer works by touch. The countdown shows in the tab title, a desktop notification appears when a phase ends in the background, and the screen stays awake while the timer runs. Reloading the page resumes the timer where it was. The app can be installed from the browser and keeps working offline; recordings sync when the connection returns.
 
 The stats dialog uses your browser's time zone for days, weeks, and streaks.
 

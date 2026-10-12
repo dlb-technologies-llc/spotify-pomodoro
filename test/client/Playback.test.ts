@@ -8,6 +8,7 @@ import { Effect, Layer, Option, Ref, Schedule, SubscriptionRef } from "effect";
 import { KeyValueStore } from "effect/persistence";
 import { Playback, SDK_CHANNEL } from "@/client/Playback";
 import { SettingsStore } from "@/client/SettingsStore";
+import { Toasts } from "@/client/Toasts";
 import { SpotifyClient } from "@/client/SpotifyClient";
 import { WebPlaybackSdk } from "@/client/WebPlaybackSdk";
 import {
@@ -61,7 +62,7 @@ const fakeSdk = (
 ) => Layer.succeed(WebPlaybackSdk, { ensureDevice });
 
 const run = <A, E>(
-	effect: Effect.Effect<A, E, Playback>,
+	effect: Effect.Effect<A, E, Playback | Toasts>,
 	options: {
 		readonly play?: (
 			request: PlayRequest,
@@ -89,6 +90,7 @@ const run = <A, E>(
 					),
 					Layer.provide(fakeSdk(options.sdk ?? Effect.succeed("sdk-device"))),
 					Layer.provideMerge(SettingsStore.layer),
+					Layer.provideMerge(Toasts.layer),
 					Layer.provide(KeyValueStore.layerMemory),
 				),
 			),
@@ -97,6 +99,12 @@ const run = <A, E>(
 	});
 
 const view = Playback.use((playback) => SubscriptionRef.get(playback.view));
+
+const messages = Toasts.use((toasts) =>
+	SubscriptionRef.get(toasts.toasts).pipe(
+		Effect.map((all) => all.map((t) => t.message)),
+	),
+);
 
 describe("Playback", () => {
 	it.effect("starts a playlist with shuffle and repeat", () =>
@@ -114,7 +122,6 @@ describe("Playback", () => {
 			);
 			assert.strictEqual(calls[0]?.request?.contextUri, playlist.uri);
 			assert.deepStrictEqual(result.selected, Option.some(playlist));
-			assert.isTrue(Option.isNone(result.error));
 		}),
 	);
 
@@ -239,12 +246,12 @@ describe("Playback", () => {
 				const { result } = yield* run(
 					Effect.gen(function* () {
 						yield* Playback.use((p) => p.startPlaylist(playlist));
-						return yield* view;
+						return { current: yield* view, shown: yield* messages };
 					}),
 					{ play, sdk },
 				);
-				assert.deepStrictEqual(result.error, Option.some(message));
-				assert.isFalse(result.playingIntent);
+				assert.deepStrictEqual(result.shown, [message]);
+				assert.isFalse(result.current.playingIntent);
 			}
 		}),
 	);
@@ -285,9 +292,9 @@ describe("Playback", () => {
 					const otherTab = new BroadcastChannel(SDK_CHANNEL);
 					otherTab.postMessage({ type: "sdk-claimed" });
 					otherTab.close();
-					return yield* SubscriptionRef.get(playback.view).pipe(
+					yield* messages.pipe(
 						Effect.filterOrFail(
-							(v) => v.tabTookOver,
+							(shown) => shown.includes("Playback moved to another tab"),
 							() => "not yet",
 						),
 						Effect.retry({
@@ -295,10 +302,10 @@ describe("Playback", () => {
 							times: 100,
 						}),
 					);
+					return yield* view;
 				}),
 				{ playback: Option.some(browserPlayback) },
 			);
-			assert.isTrue(result.tabTookOver);
 			assert.isFalse(result.isPlaying);
 		}),
 	);

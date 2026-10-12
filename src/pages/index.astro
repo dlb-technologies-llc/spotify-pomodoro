@@ -7,10 +7,22 @@ import { App } from "@/components/App";
 	<head>
 		<meta charset="utf-8" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<meta name="viewport" content="width=device-width" />
+		<link rel="manifest" href="/manifest.webmanifest" />
+		<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+		<meta name="theme-color" content="#f0ebe4" media="(prefers-color-scheme: light)" />
+		<meta name="theme-color" content="#1a1820" media="(prefers-color-scheme: dark)" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<meta name="generator" content={Astro.generator} />
 		<title>Spotify Pomodoro</title>
 		<meta name="description" content="A pomodoro timer that integrates with Spotify" />
+		<script is:inline>
+			try {
+				const stored = JSON.parse(localStorage.getItem("lofi-pomodoro-theme") ?? '"system"');
+				const dark = stored === "dark" || (stored !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+				document.documentElement.classList.toggle("dark", dark);
+				document.documentElement.style.colorScheme = dark ? "dark" : "light";
+			} catch {}
+		</script>
 	</head>
 	<body class="min-h-screen bg-background text-foreground antialiased">
 		<App client:only="react" />

@@ -18,6 +18,7 @@ import {
 	Volume2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { usePopover } from "./usePopover";
 import {
 	connectSpotifyAtom,
 	devicesAtom,
@@ -76,9 +77,11 @@ export const arrangePlaylists = (
  */
 function PlaylistPicker({
 	selected,
+	panel,
 	onClose,
 }: {
 	readonly selected: Playlist | null;
+	readonly panel: React.RefObject<HTMLDivElement | null>;
 	readonly onClose: () => void;
 }) {
 	const result = useAtomValue(playlistsAtom);
@@ -96,13 +99,12 @@ function PlaylistPicker({
 	const shown = arrangePlaylists(playlists, pinned, search);
 
 	return (
-		<div className={popover}>
+		<div ref={panel} className={popover}>
 			<input
 				type="search"
 				ref={searchBox}
 				value={search}
 				onChange={(event) => setSearch(event.target.value)}
-				onKeyDown={(event) => event.key === "Escape" && onClose()}
 				placeholder={`search ${playlists.length} playlists`}
 				aria-label="search playlists"
 				className="w-full bg-transparent px-3 py-2.5 text-sm border-b border-border focus:outline-none"
@@ -141,7 +143,7 @@ function PlaylistPicker({
 										className="w-10 h-10 rounded object-cover"
 									/>
 								) : (
-									<span className="w-10 h-10 rounded bg-secondary flex items-center justify-center text-muted-foreground/30 text-sm">
+									<span className="w-10 h-10 rounded bg-secondary flex items-center justify-center text-muted-foreground/90 text-sm">
 										♪
 									</span>
 								)}
@@ -154,7 +156,7 @@ function PlaylistPicker({
 								aria-label={`${isPinned ? "unpin" : "pin"} ${playlist.name}`}
 								aria-pressed={isPinned}
 								onClick={() => togglePin(playlist.id)}
-								className="p-1.5 rounded text-muted-foreground/40 hover:text-foreground"
+								className="p-1.5 rounded text-muted-foreground/90 hover:text-foreground"
 							>
 								<Star
 									className={cn(
@@ -191,7 +193,7 @@ function DevicePicker({
 }: {
 	readonly playback: PlaybackState | null;
 }) {
-	const [open, setOpen] = useState(false);
+	const { open, setOpen, trigger, panel } = usePopover<HTMLUListElement>();
 	const devices = AsyncResult.getOrElse(useAtomValue(devicesAtom), () => []);
 	const refreshDevices = useAtomRefresh(devicesAtom);
 	const selectDevice = useAtomSet(selectDeviceAtom);
@@ -205,6 +207,7 @@ function DevicePicker({
 	return (
 		<div className="relative">
 			<button
+				ref={trigger}
 				type="button"
 				aria-label="choose device"
 				aria-expanded={open}
@@ -212,13 +215,13 @@ function DevicePicker({
 					if (!open) refreshDevices();
 					setOpen(!open);
 				}}
-				className="flex items-center gap-1.5 text-muted-foreground/50 hover:text-muted-foreground text-xs"
+				className="flex items-center gap-1.5 text-muted-foreground/90 hover:text-muted-foreground text-xs"
 			>
 				<CurrentIcon className="w-3 h-3" />
 				<span>{current ?? "no device"}</span>
 			</button>
 			{open && (
-				<ul className={popover}>
+				<ul ref={panel} className={popover}>
 					{devices.length === 0 && (
 						<li className="p-3 text-sm text-muted-foreground">
 							No devices. Open Spotify on a phone or computer.
@@ -242,7 +245,7 @@ function DevicePicker({
 									<Icon className="w-4 h-4 text-muted-foreground" />
 									<span className="truncate">{device.name}</span>
 									{device.isActive && (
-										<span className="ml-auto text-xs text-[#1DB954]">
+										<span className="ml-auto text-xs text-[var(--spotify-text)]">
 											active
 										</span>
 									)}
@@ -292,7 +295,7 @@ function NowPlaying({ playback }: { readonly playback: PlaybackState }) {
 			)}
 			<div className="min-w-0 flex-1">
 				<p className="truncate text-sm text-foreground/80">{track.title}</p>
-				<p className="truncate text-xs text-muted-foreground/60">
+				<p className="truncate text-xs text-muted-foreground/90">
 					{track.artist ?? ""}
 				</p>
 			</div>
@@ -352,7 +355,12 @@ export function SpotifyControls() {
 		useAtomValue(playerAtom),
 		() => undefined,
 	);
-	const [showPlaylists, setShowPlaylists] = useState(false);
+	const {
+		open: playlistsOpen,
+		setOpen: setPlaylistsOpen,
+		trigger: playlistsTrigger,
+		panel: playlistsPanel,
+	} = usePopover<HTMLDivElement>();
 
 	useEffect(() => {
 		if (connected) refreshPlayback();
@@ -367,8 +375,8 @@ export function SpotifyControls() {
 					onClick={() => connect()}
 					className={cn(
 						"flex items-center gap-2 px-4 py-2 rounded-xl text-sm",
-						"bg-[#1DB954]/10 text-[#1DB954]/70 border border-[#1DB954]/20",
-						"hover:bg-[#1DB954]/20 hover:text-[#1DB954] transition-all duration-300",
+						"bg-[#1DB954]/10 text-[var(--spotify-text)] border border-[#1DB954]/20",
+						"hover:bg-[#1DB954]/20 hover:text-[var(--spotify-text)] transition-all duration-300",
 					)}
 				>
 					<span className="text-base">♪</span>
@@ -413,7 +421,7 @@ export function SpotifyControls() {
 									className="w-full h-full object-cover"
 								/>
 							) : (
-								<span className="text-muted-foreground/30 text-xs">♪</span>
+								<span className="text-muted-foreground/90 text-xs">♪</span>
 							)}
 						</div>
 					</div>
@@ -421,9 +429,10 @@ export function SpotifyControls() {
 
 				<div className="relative">
 					<button
+						ref={playlistsTrigger}
 						type="button"
-						aria-expanded={showPlaylists}
-						onClick={() => setShowPlaylists(!showPlaylists)}
+						aria-expanded={playlistsOpen}
+						onClick={() => setPlaylistsOpen(!playlistsOpen)}
 						className={cn(
 							"flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-base",
 							"bg-secondary/30 text-muted-foreground border border-border",
@@ -435,10 +444,11 @@ export function SpotifyControls() {
 						</span>
 						<span className="text-xs opacity-50">▼</span>
 					</button>
-					{showPlaylists && (
+					{playlistsOpen && (
 						<PlaylistPicker
 							selected={selected}
-							onClose={() => setShowPlaylists(false)}
+							panel={playlistsPanel}
+							onClose={() => setPlaylistsOpen(false)}
 						/>
 					)}
 				</div>
@@ -447,7 +457,7 @@ export function SpotifyControls() {
 					type="button"
 					aria-label="disconnect spotify"
 					onClick={() => disconnect()}
-					className="text-xs text-muted-foreground/30 hover:text-muted-foreground/50 transition-colors"
+					className="text-xs text-muted-foreground/90 hover:text-foreground transition-colors"
 				>
 					×
 				</button>

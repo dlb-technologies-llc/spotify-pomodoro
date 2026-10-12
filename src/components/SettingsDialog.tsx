@@ -197,7 +197,7 @@ export function SettingsDialog({
 				/>
 				<span
 					id={`${key}-unit`}
-					className="w-12 text-xs text-muted-foreground/60"
+					className="w-12 text-xs text-muted-foreground/90"
 				>
 					{unit}
 				</span>
@@ -236,7 +236,7 @@ export function SettingsDialog({
 					<DialogTitle className="text-lg font-medium tracking-wide">
 						Settings
 					</DialogTitle>
-					<DialogDescription className="text-xs text-muted-foreground/60">
+					<DialogDescription className="text-xs text-muted-foreground/90">
 						Saved in this browser.
 					</DialogDescription>
 				</DialogHeader>
@@ -252,7 +252,7 @@ export function SettingsDialog({
 					}}
 				>
 					<fieldset className="space-y-3 border-0 p-0 m-0">
-						<legend className="mb-2 text-xs uppercase tracking-widest text-muted-foreground/70">
+						<legend className="mb-2 text-xs uppercase tracking-widest text-muted-foreground/90">
 							Timer
 						</legend>
 						{number("focus", "Focus", "min", { min: 1, max: 240 })}
@@ -267,18 +267,18 @@ export function SettingsDialog({
 					</fieldset>
 
 					<fieldset className="space-y-3 border-0 p-0 m-0">
-						<legend className="mb-2 text-xs uppercase tracking-widest text-muted-foreground/70">
+						<legend className="mb-2 text-xs uppercase tracking-widest text-muted-foreground/90">
 							Goal
 						</legend>
 						{number("goal", "Daily goal", "pomodoros", { min: 0, max: 48 })}
 					</fieldset>
 
 					<fieldset className="space-y-3 border-0 p-0 m-0">
-						<legend className="mb-2 text-xs uppercase tracking-widest text-muted-foreground/70">
+						<legend className="mb-2 text-xs uppercase tracking-widest text-muted-foreground/90">
 							Music
 						</legend>
 						{!connected && (
-							<p className="text-xs text-muted-foreground/60">
+							<p className="text-xs text-muted-foreground/90">
 								Connect Spotify to choose playlists.
 							</p>
 						)}
@@ -346,7 +346,7 @@ export function SettingsDialog({
 					</fieldset>
 
 					<fieldset className="space-y-3 border-0 p-0 m-0">
-						<legend className="mb-2 text-xs uppercase tracking-widest text-muted-foreground/70">
+						<legend className="mb-2 text-xs uppercase tracking-widest text-muted-foreground/90">
 							Sound
 						</legend>
 						<label className="flex items-center justify-between gap-4 text-sm">

@@ -9,6 +9,7 @@ import { FetchHttpClient, HttpClient } from "effect/http";
 import { loggingLayer } from "@/shared/Logging";
 import { ApiClient } from "./ApiClient";
 import { AudioNotification } from "./AudioNotification";
+import { Outbox } from "./Outbox";
 import { Playback } from "./Playback";
 import { MusicDirector } from "./MusicDirector";
 import { Notifier } from "./Notifier";
@@ -21,6 +22,7 @@ import { SpotifyClient } from "./SpotifyClient";
 import { StartupLive } from "./Startup";
 import { BrowserTelemetry } from "./Telemetry";
 import { Timer } from "./Timer";
+import { Toasts } from "./Toasts";
 import { WebPlaybackSdk } from "./WebPlaybackSdk";
 
 /**
@@ -63,6 +65,8 @@ export const ClientLive = StartupLive.pipe(
 	Layer.provideMerge(MusicDirector.layer),
 	Layer.provideMerge(Layer.mergeAll(SpotifyLive, PomodoroLive)),
 	Layer.provideMerge(SettingsStore.layer),
+	Layer.provideMerge(Toasts.layer),
+	Layer.provideMerge(Outbox.layer),
 	Layer.provideMerge(ApiClient.layer),
 	Layer.provide(BrowserKeyValueStore.layerLocalStorage),
 	Layer.provide(FetchHttpClient.layer),

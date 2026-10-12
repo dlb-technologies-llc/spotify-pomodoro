@@ -24,6 +24,9 @@ export const isPublicPath = (pathname: string): boolean =>
 	pathname === "/login" ||
 	pathname === "/favicon.svg" ||
 	pathname === "/robots.txt" ||
+	pathname === "/sw.js" ||
+	pathname === "/manifest.webmanifest" ||
+	pathname.startsWith("/icons/") ||
 	pathname.startsWith("/_astro/") ||
 	pathname.startsWith("/api/");
 

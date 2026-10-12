@@ -10,6 +10,7 @@ import { TestClock } from "effect/testing";
 import { ApiClient } from "@/client/ApiClient";
 import { AudioNotification } from "@/client/AudioNotification";
 import { Notifier } from "@/client/Notifier";
+import { Outbox } from "@/client/Outbox";
 import { Pomodoro } from "@/client/Pomodoro";
 import { ScreenWake } from "@/client/ScreenWake";
 import {
@@ -44,6 +45,7 @@ const controls = (
 			),
 		),
 		Layer.provideMerge(SettingsStore.layer),
+		Layer.provideMerge(Outbox.layer),
 		Layer.provideMerge(api),
 		Layer.provideMerge(options.store ?? KeyValueStore.layerMemory),
 	);

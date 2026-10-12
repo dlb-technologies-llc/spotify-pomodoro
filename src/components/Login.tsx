@@ -80,7 +80,7 @@ export function Login({ returnUrl }: { readonly returnUrl?: string }) {
 								spotify pomodoro
 							</h1>
 
-							<p className="text-sm text-muted-foreground/60 mt-1">
+							<p className="text-sm text-muted-foreground/90 mt-1">
 								enter your credentials to continue
 							</p>
 						</div>
@@ -89,7 +89,7 @@ export function Login({ returnUrl }: { readonly returnUrl?: string }) {
 							<div className="space-y-2">
 								<label
 									htmlFor="username"
-									className="block text-xs font-medium text-muted-foreground/70 uppercase tracking-wider"
+									className="block text-xs font-medium text-muted-foreground/90 uppercase tracking-wider"
 								>
 									username
 								</label>
@@ -111,7 +111,7 @@ export function Login({ returnUrl }: { readonly returnUrl?: string }) {
 							<div className="space-y-2">
 								<label
 									htmlFor="password"
-									className="block text-xs font-medium text-muted-foreground/70 uppercase tracking-wider"
+									className="block text-xs font-medium text-muted-foreground/90 uppercase tracking-wider"
 								>
 									password
 								</label>
@@ -125,7 +125,7 @@ export function Login({ returnUrl }: { readonly returnUrl?: string }) {
 									className={cn(
 										"w-full px-4 py-3 rounded-xl",
 										"bg-background/50 border border-border/50",
-										"text-foreground placeholder:text-muted-foreground/30",
+										"text-foreground placeholder:text-muted-foreground/70",
 										"focus:outline-none focus:ring-2 focus:ring-[var(--lofi-idle)]/30 focus:border-[var(--lofi-idle)]/50",
 										"transition-all duration-200",
 									)}
@@ -170,7 +170,7 @@ export function Login({ returnUrl }: { readonly returnUrl?: string }) {
 						</form>
 
 						<div className="mt-8 pt-6 border-t border-border/30 text-center">
-							<p className="text-xs text-muted-foreground/40 leading-relaxed">
+							<p className="text-xs text-muted-foreground/90 leading-relaxed">
 								credentials are configured via
 								<br />
 								environment variables
@@ -181,7 +181,7 @@ export function Login({ returnUrl }: { readonly returnUrl?: string }) {
 			</main>
 
 			<footer className="py-5 text-center">
-				<span className="text-muted-foreground/30 text-xs">
+				<span className="text-muted-foreground/90 text-xs">
 					protected instance
 				</span>
 			</footer>

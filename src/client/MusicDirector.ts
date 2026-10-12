@@ -10,6 +10,7 @@ import { Playback } from "./Playback";
 import { SettingsStore } from "./SettingsStore";
 import { SpotifyAuth } from "./SpotifyAuth";
 import { Timer } from "./Timer";
+import { Toasts } from "./Toasts";
 
 /**
  * A phase change: where the timer was and where it is now.
@@ -49,6 +50,7 @@ export class MusicDirector extends Context.Service<MusicDirector>()(
 			const playback = yield* Playback;
 			const settings = yield* SettingsStore;
 			const auth = yield* SpotifyAuth;
+			const toasts = yield* Toasts;
 			const scope = yield* Effect.scope;
 			const volumeBeforeBreak = yield* Ref.make(Option.none<number>());
 			const pausedForBreak = yield* Ref.make(false);
@@ -119,7 +121,9 @@ export class MusicDirector extends Context.Service<MusicDirector>()(
 					}
 				},
 				Effect.catchCause((cause) =>
-					Effect.logWarning("Music change failed", cause),
+					Effect.logWarning("Music change failed", cause).pipe(
+						Effect.andThen(toasts.show("error", "Couldn't change the music")),
+					),
 				),
 			);
 

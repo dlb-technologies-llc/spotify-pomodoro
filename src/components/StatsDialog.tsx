@@ -101,7 +101,7 @@ export function StatsDialog({
 								"flex-1 rounded-md px-3 py-1 text-xs capitalize transition-all",
 								tab === value
 									? "bg-primary/20 text-primary font-medium"
-									: "text-muted-foreground/70 hover:text-foreground",
+									: "text-muted-foreground/90 hover:text-foreground",
 							)}
 						>
 							{value}
@@ -135,12 +135,12 @@ export function StatsDialog({
 						<ContributionGraph dailyActivity={stats.dailyActivity} />
 
 						<div className="flex items-center justify-between gap-2 px-1">
-							<div className="flex items-center gap-1 text-xs text-muted-foreground/60">
+							<div className="flex items-center gap-1 text-xs text-muted-foreground/90">
 								<span className="hidden sm:inline">
 									{stats.currentStreak} day streak
 								</span>
 								<span className="sm:hidden">{stats.currentStreak}d streak</span>
-								<span className="text-muted-foreground/30">·</span>
+								<span className="text-muted-foreground/90">·</span>
 								<span>best: {stats.longestStreak}</span>
 							</div>
 							<PeriodTabs period={period} onChange={setPeriod} />
@@ -152,7 +152,7 @@ export function StatsDialog({
 						<FocusHeatmap heatmap={stats.focusHeatmap} />
 						<OvertimeSummary stats={stats} />
 
-						<div className="pt-1 text-center text-xs text-muted-foreground/50">
+						<div className="pt-1 text-center text-xs text-muted-foreground/90">
 							{stats.completedPomodoros} total pomodoros completed
 						</div>
 					</div>
@@ -199,7 +199,7 @@ function PeriodTabs({
 						"sm:px-3",
 						period === tab.value
 							? "bg-primary/20 text-primary font-medium"
-							: "text-muted-foreground/70 hover:text-foreground hover:bg-secondary/50",
+							: "text-muted-foreground/90 hover:text-foreground hover:bg-secondary/50",
 					)}
 				>
 					<span className="hidden sm:inline">{tab.label}</span>
@@ -246,7 +246,7 @@ function StatCard({
 				"text-center",
 			)}
 		>
-			<div className="text-[10px] sm:text-xs text-muted-foreground/70 uppercase tracking-wide mb-0.5 sm:mb-1">
+			<div className="text-[10px] sm:text-xs text-muted-foreground/90 uppercase tracking-wide mb-0.5 sm:mb-1">
 				{label}
 			</div>
 			<div className="font-mono font-semibold text-lg sm:text-xl">{value}</div>
@@ -370,7 +370,7 @@ function ContributionGraph({
 								"px-2 py-0.5 text-xs rounded transition-colors",
 								selectedYear === year
 									? "bg-primary/20 text-primary font-medium"
-									: "text-muted-foreground/60 hover:text-foreground hover:bg-secondary/50",
+									: "text-muted-foreground/90 hover:text-foreground hover:bg-secondary/50",
 							)}
 						>
 							{year}
@@ -382,7 +382,7 @@ function ContributionGraph({
 			<div className="overflow-x-auto">
 				<div className="min-w-[280px]">
 					<div
-						className="grid gap-[3px] text-[8px] text-muted-foreground/50 mb-1"
+						className="grid gap-[3px] text-[8px] text-muted-foreground/90 mb-1"
 						style={{
 							gridTemplateColumns: `16px repeat(${weeks.length}, 1fr)`,
 						}}
@@ -404,7 +404,7 @@ function ContributionGraph({
 					</div>
 
 					<div className="flex gap-[3px]">
-						<div className="flex flex-col justify-between text-[8px] text-muted-foreground/50 w-4 shrink-0 py-[2px]">
+						<div className="flex flex-col justify-between text-[8px] text-muted-foreground/90 w-4 shrink-0 py-[2px]">
 							<span>S</span>
 							<span>W</span>
 							<span>S</span>
@@ -428,7 +428,7 @@ function ContributionGraph({
 				</div>
 			</div>
 
-			<div className="flex items-center justify-end gap-1.5 text-[9px] text-muted-foreground/50">
+			<div className="flex items-center justify-end gap-1.5 text-[9px] text-muted-foreground/90">
 				<span>Less</span>
 				{[0, 1, 2, 3, 4].map((level) => (
 					<div

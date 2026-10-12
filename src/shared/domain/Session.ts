@@ -34,6 +34,25 @@ export const Count = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 const Uuid = Schema.String.check(Schema.isUUID());
 
 /**
+ * When something happened on the client, in epoch milliseconds. Lets
+ * recordings made offline keep their real times.
+ *
+ * @since 2.1.0
+ * @category Schemas
+ */
+export const Millis = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
+
+/**
+ * {@link Millis} in a query string.
+ *
+ * @since 2.1.0
+ * @category Schemas
+ */
+export const QueryMillis = Schema.FiniteFromString.pipe(
+	Schema.decodeTo(Millis),
+);
+
+/**
  * Identifier of a pomodoro cycle.
  *
  * @since 2.0.0
@@ -118,6 +137,18 @@ export class Pomodoro extends Model.Class<Pomodoro>("Pomodoro")({
  */
 export const CreatePomodoro = Schema.Struct({
 	label: Schema.optional(PomodoroLabel),
+	id: Schema.optional(PomodoroId),
+	at: Schema.optional(QueryMillis),
+});
+
+/**
+ * Query string for completing a pomodoro at a given time.
+ *
+ * @since 2.1.0
+ * @category Schemas
+ */
+export const CompletePomodoro = Schema.Struct({
+	at: Schema.optional(QueryMillis),
 });
 
 /**
@@ -214,6 +245,8 @@ export class RecordingIds extends Schema.Class<RecordingIds>("RecordingIds")({
 export const StartSession = Schema.Struct({
 	pomodoroId: PomodoroId,
 	configuredSeconds: Seconds,
+	id: Schema.optional(Uuid),
+	at: Schema.optional(Millis),
 });
 
 /**
@@ -230,6 +263,7 @@ export type StartSession = typeof StartSession.Type;
  */
 export const CompleteSession = Schema.Struct({
 	elapsedSeconds: Seconds,
+	at: Schema.optional(Millis),
 });
 
 /**

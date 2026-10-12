@@ -109,7 +109,7 @@ function Summary({
 }) {
 	return (
 		<div className="rounded-xl border border-border/50 bg-secondary/30 p-2">
-			<div className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
+			<div className="text-[10px] uppercase tracking-wide text-muted-foreground/90">
 				{label}
 			</div>
 			<div className="font-mono text-sm font-semibold">{value}</div>
@@ -166,7 +166,7 @@ export function FocusChart({
 	const max = Math.max(1, ...buckets.map((b) => b.seconds));
 	return (
 		<figure className="space-y-2">
-			<figcaption className="flex items-center justify-between text-xs text-muted-foreground/70">
+			<figcaption className="flex items-center justify-between text-xs text-muted-foreground/90">
 				<span>Focus per {mode}</span>
 				<span className="flex gap-1">
 					{ChartMode.literals.map((option) => (
@@ -208,7 +208,7 @@ export function FocusChart({
 			</ol>
 			<div
 				aria-hidden="true"
-				className="flex justify-between text-[9px] text-muted-foreground/50"
+				className="flex justify-between text-[9px] text-muted-foreground/90"
 			>
 				<span>{buckets[0]?.label}</span>
 				<span>{buckets.at(-1)?.label}</span>
@@ -232,15 +232,15 @@ export function FocusHeatmap({
 	const total = heatmap.flat().reduce((sum, value) => sum + value, 0);
 	return (
 		<figure className="space-y-2">
-			<figcaption className="text-xs text-muted-foreground/70">
+			<figcaption className="text-xs text-muted-foreground/90">
 				When you focus
 			</figcaption>
 			{total === 0 ? (
-				<p className="text-xs text-muted-foreground/50">
+				<p className="text-xs text-muted-foreground/90">
 					No focus sessions yet.
 				</p>
 			) : (
-				<table className="w-full border-separate border-spacing-[2px] text-[8px] text-muted-foreground/50">
+				<table className="w-full border-separate border-spacing-[2px] text-[8px] text-muted-foreground/90">
 					<thead>
 						<tr>
 							<th scope="col" className="w-6">
