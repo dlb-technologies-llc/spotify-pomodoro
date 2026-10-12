@@ -144,12 +144,7 @@ Spotify settings are read at runtime by the server, so one image works for any d
 
 ## Releases
 
-Images are published to `ghcr.io/dlb-technologies-llc/spotify-pomodoro`:
-
-- `:staging` — every green push to the `staging` branch
-- `:latest` and `:<version>` — every release merged from `staging` into `main`
-
-Watchtower deployments follow `:latest`; point a staging host at `IMAGE_TAG=staging`.
+Every green push to `main` publishes `ghcr.io/dlb-technologies-llc/spotify-pomodoro:latest` (plus `:<version>` and `:sha-<commit>`); Watchtower deployments pick up `:latest`. A version bump in `package.json` also tags and publishes a GitHub release.
 
 ## Tech Stack
 

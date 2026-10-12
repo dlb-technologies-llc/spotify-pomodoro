@@ -8,6 +8,6 @@
 
 ## Checklist
 
-- [ ] Targets `staging` (releases: `staging` → `main` with a version bump and changelog entry)
+- [ ] Version bumped and `CHANGELOG.md` updated if this is a release
 - [ ] `bun run check` passes
 - [ ] New behavior is covered by tests

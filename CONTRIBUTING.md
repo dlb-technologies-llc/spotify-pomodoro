@@ -12,14 +12,9 @@ Requirements: [Bun](https://bun.sh) 1.3+ and Node 24+ (the production server run
 
 ## Branches and releases
 
-```
-feature/*  ──PR──▶  staging  ──release PR──▶  main
-```
+Branch from `main` and open a PR into `main`; CI must be green to merge. Every push to `main` publishes `ghcr.io/…/spotify-pomodoro:latest`, `:<version>`, and `:sha-<commit>`.
 
-1. Branch from `staging`, open a PR into `staging`. CI must be green.
-2. Merging into `staging` publishes `ghcr.io/…/spotify-pomodoro:staging`.
-3. To release, bump `version` in `package.json`, add a `CHANGELOG.md` entry, and open a PR from `staging` into `main`. CI rejects release PRs from any other branch or with an already-released version.
-4. Merging into `main` publishes `:latest` and `:<version>`, tags `v<version>`, and creates the GitHub release from the changelog.
+To cut a release, bump `version` in `package.json` and add a `CHANGELOG.md` entry in the same PR. When it lands on `main`, CI tags `v<version>` and creates the GitHub release from the changelog. Pushes that don't change the version only update the image tags.
 
 ## Checks
 
@@ -30,7 +25,7 @@ feature/*  ──PR──▶  staging  ──release PR──▶  main
 | `bun run test:e2e`  | Playwright against a production build (`--project=chromium` etc.) |
 | `bun run test:live` | Read-only checks against the real Spotify API                     |
 
-CI runs all of these, plus a Docker build and smoke test, on every PR and push to `staging` and `main`.
+CI runs all of these, plus a Docker build and smoke test, on every PR and push to `main`.
 
 ### Live Spotify tests
 

@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stats use the browser's time zone for days, weeks, and streaks
 - The timer measures elapsed time from the clock, so throttled background tabs stay accurate
 - Browser tracing is only forwarded when `OTEL_COLLECTOR_URL` is set
-- `staging` branch with `:staging` images; releases are PRs from `staging` into `main`
+- CI gates every merge to `main` on lint, typecheck, unit, E2E, live Spotify, and Docker smoke tests; green pushes publish images and new versions are released automatically
 - Linting and formatting moved from Biome to oxlint (type-aware) and oxfmt
 
 ### Fixed
