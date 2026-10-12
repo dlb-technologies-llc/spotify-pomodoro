@@ -1,63 +1,57 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("Authentication", () => {
-	test("login page renders correctly", async ({ page }) => {
-		await page.goto("/login");
+const signIn = async (
+	page: import("@playwright/test").Page,
+	password: string,
+) => {
+	await page.getByLabel("password").fill(password);
+	await page.getByRole("button", { name: "sign in" }).click();
+};
 
+test.describe("Authentication", () => {
+	test("login page renders", async ({ page }) => {
+		await page.goto("/login");
 		const username = page.getByLabel("username");
-		await expect(username).toBeVisible();
 		await expect(username).toHaveValue("admin");
 		await expect(username).toHaveAttribute("readonly", "");
-
 		await expect(page.getByLabel("password")).toBeVisible();
-
-		await expect(page.getByRole("button", { name: "sign in" })).toBeVisible();
 	});
 
-	test("valid login redirects to home", async ({ page }) => {
-		await page.goto("/login");
-		await page.getByLabel("password").fill("test-password");
-		await page.getByRole("button", { name: "sign in" }).click();
-
-		await page.waitForURL("/");
+	test("protected page redirects to login and back", async ({ page }) => {
+		await page.goto("/?from=test");
+		await page.waitForURL(/\/login\?return=/);
+		await signIn(page, "test-password");
+		await page.waitForURL("/?from=test");
 		await expect(page.getByText("press space to start")).toBeVisible();
 	});
 
-	test("invalid password shows error", async ({ page }) => {
+	test("wrong password shows an error", async ({ page }) => {
 		await page.goto("/login");
-		await page.getByLabel("password").fill("wrong-password");
-		await page.getByRole("button", { name: "sign in" }).click();
-
-		await expect(page.locator(".text-destructive")).toBeVisible();
+		await signIn(page, "wrong-password");
+		await expect(page.getByText("Invalid credentials")).toBeVisible();
 		expect(page.url()).toContain("/login");
 	});
 
-	test("protected route redirects to login", async ({ page }) => {
-		await page.goto("/");
-		await page.waitForURL(/\/login/);
-		expect(page.url()).toContain("/login");
+	test("never redirects off-site after login", async ({ page }) => {
+		await page.goto("/login?return=https://example.com");
+		await signIn(page, "test-password");
+		await page.waitForURL("/");
 	});
 
-	test("logout clears session", async ({ page }) => {
-		await page.goto("/login");
-		await page.getByLabel("password").fill("test-password");
-		await page.getByRole("button", { name: "sign in" }).click();
-		await page.waitForURL("/");
-
-		await page.evaluate(() => fetch("/api/auth/logout", { method: "POST" }));
-
-		await page.goto("/");
-		await page.waitForURL(/\/login/);
+	test("API rejects requests without a session", async ({ request }) => {
+		const response = await request.get("/api/stats");
+		expect(response.status()).toBe(401);
+		expect((await request.get("/api/health")).status()).toBe(200);
 	});
 
-	test("auth cookie persists across page refresh", async ({ page }) => {
+	test("session survives reload and ends on logout", async ({ page }) => {
 		await page.goto("/login");
-		await page.getByLabel("password").fill("test-password");
-		await page.getByRole("button", { name: "sign in" }).click();
+		await signIn(page, "test-password");
 		await page.waitForURL("/");
-
 		await page.reload();
 		await expect(page.getByText("press space to start")).toBeVisible();
-		expect(page.url()).not.toContain("/login");
+		await page.evaluate(() => fetch("/api/auth/logout", { method: "POST" }));
+		await page.goto("/");
+		await page.waitForURL(/\/login/);
 	});
 });

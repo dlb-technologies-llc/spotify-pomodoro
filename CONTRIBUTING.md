@@ -1,297 +1,71 @@
-# Contributing to Spotify Pomodoro
+# Contributing
 
-Thank you for your interest in contributing! This guide covers the development environment setup, code conventions, and PR process.
-
-## Development Environment
-
-### Prerequisites
-
-- [Bun](https://bun.sh/) v1.0+
-- A text editor with TypeScript support
-- A Spotify Developer account (optional, for music integration)
-
-### Setup
+## Setup
 
 ```bash
-# Clone and install
-git clone https://github.com/davidlbowman/spotify-pomodoro.git
-cd spotify-pomodoro
 bun install
-
-# Initialize database
-bun run db:migrate
-
-# Run tests
-bun run test
-
-# Start development server
+cp .env.example .env    # add your Spotify client ID
 bun run dev
 ```
 
-### Development Workflow
+Requirements: [Bun](https://bun.sh) 1.3+ and Node 24+ (the production server runs on Node).
 
-1. Create a feature branch from `main`
-2. Make your changes
-3. Run lint, typecheck, and tests
-4. Submit a PR
+## Branches and releases
+
+```
+feature/*  ──PR──▶  staging  ──release PR──▶  main
+```
+
+1. Branch from `staging`, open a PR into `staging`. CI must be green.
+2. Merging into `staging` publishes `ghcr.io/…/spotify-pomodoro:staging`.
+3. To release, bump `version` in `package.json`, add a `CHANGELOG.md` entry, and open a PR from `staging` into `main`. CI rejects release PRs from any other branch or with an already-released version.
+4. Merging into `main` publishes `:latest` and `:<version>`, tags `v<version>`, and creates the GitHub release from the changelog.
+
+## Checks
+
+| Command | What it runs |
+| --- | --- |
+| `bun run check` | Biome, `astro check`, unit tests |
+| `bun run test` | Unit and integration tests (Vitest) |
+| `bun run test:e2e` | Playwright against a production build (`--project=chromium` etc.) |
+| `bun run test:live` | Read-only checks against the real Spotify API |
+
+CI runs all of these, plus a Docker build and smoke test, on every PR and push to `staging` and `main`.
+
+### Live Spotify tests
+
+Live tests need a Spotify account's refresh token for the app's client ID. Mint one once and store it as repository secrets:
 
 ```bash
-# Ensure code quality before committing
-bun run lint:fix && bun run typecheck && bun run test
+bun run spotify:token --github
 ```
 
-### Docker Development
+This opens Spotify's consent page, catches the redirect on `PUBLIC_SPOTIFY_REDIRECT_URI`, and sets `SPOTIFY_REFRESH_TOKEN` and `PUBLIC_SPOTIFY_CLIENT_ID`. Locally, export both variables and run `bun run test:live` or `bunx playwright test --project=setup --project=live`.
 
-You can also develop using Docker:
+## Code conventions
 
-```bash
-# Start dev server with hot reload
-docker compose -f docker-compose.dev.yml up
+- Everything is Effect: services are `Context.Service` classes with a `layer`, functions use `Effect.fn`, errors are `Schema.TaggedError`.
+- Every data type comes from an Effect `Schema`. Request bodies are `Schema.Struct`; records are `Model.Class`.
+- The API is defined once in `src/shared/api/Api.ts`; the server implements it and the browser derives a typed client from it.
+- No `as` casts or `!` assertions.
+- Tests use `@effect/vitest`. Test data comes from schemas (`test/support/arbitrary.ts`), not hand-written fixtures.
+- JSDoc on exports (`@since`, `@category`); no other comments.
+- Biome formats and lints (`bun run lint:fix`).
 
-# Rebuild after dependency changes
-docker compose -f docker-compose.dev.yml up --build
-```
-
-The dev container mounts your local files, so changes reflect immediately.
-
-## Code Style
-
-### Linting & Formatting
-
-This project uses [Biome](https://biomejs.dev/) for linting and formatting:
-
-```bash
-bun run lint        # Check for issues
-bun run lint:fix    # Auto-fix issues
-```
-
-### Comments
-
-**Use JSDoc only.** No inline comments (`// ...`) or block comments (`/* ... */`).
-
-```typescript
-/**
- * Fetches user playlists from Spotify.
- *
- * @since 0.0.1
- * @category Services
- */
-const fetchPlaylists = Effect.gen(function* () {
-  const client = yield* SpotifyClient;
-  return yield* client.getPlaylists;
-});
-```
-
-Required JSDoc tags:
-- `@module` at file level (top of each file)
-- `@since` version tag on all exports
-- `@category` to group related items (Services, Errors, Schemas, Hooks)
-
-### TypeScript
-
-- Enable strict mode
-- Prefer `const` over `let`
-- Use `readonly` for immutable properties
-- Avoid `any` - use `unknown` with type guards
-
-## Effect-TS Patterns
-
-This project uses [Effect-TS](https://effect.website/) for functional programming patterns.
-
-### Services
-
-All services use `Effect.Service` with the following conventions:
-
-```typescript
-import { Effect } from "effect";
-
-/**
- * Example service with dependency injection.
- *
- * @since 0.0.1
- * @category Services
- */
-export class MyService extends Effect.Service<MyService>()("MyService", {
-  accessors: true,
-  effect: Effect.gen(function* () {
-    const config = yield* AppConfig;
-
-    const doSomething = Effect.gen(function* () {
-      return config.value;
-    });
-
-    return { doSomething };
-  }),
-  dependencies: [AppConfig.Default],
-}) {}
-```
-
-Key points:
-- Always include `accessors: true` (except config services using `sync`)
-- Include JSDoc with `@since` and `@category` tags
-- Declare dependencies explicitly in the `dependencies` array
-
-### Error Types
-
-Use `Schema.TaggedError` for type-safe error handling:
-
-```typescript
-import { Schema } from "effect";
-
-/**
- * Error when Spotify API request fails.
- * @since 0.0.1
- * @category Errors
- */
-export class SpotifyApiError extends Schema.TaggedError<SpotifyApiError>()(
-  "SpotifyApiError",
-  {
-    message: Schema.String,
-    statusCode: Schema.optionalWith(Schema.Number, { as: "Option" }),
-  },
-) {}
-```
-
-### Layer Composition
-
-Compose services using Layers:
-
-```typescript
-const FullLayer = Layer.mergeAll(ServiceA.Default, ServiceB.Default).pipe(
-  Layer.provide(ConfigLayer),
-  Layer.provide(HttpClient.layer),
-);
-```
-
-### Logging
-
-Use Effect's built-in logging for observability. The logging configuration is centralized in `src/effect/logging.ts`.
-
-**Log levels** (use appropriately):
-- `Effect.logDebug` - Development diagnostics, request tracing
-- `Effect.logInfo` - Important state changes, service lifecycle
-- `Effect.logWarning` - Recoverable issues, deprecations
-- `Effect.logError` - Failures requiring attention
-
-**Adding context** with `Effect.annotateLogs`:
-
-```typescript
-yield* Effect.logDebug("Processing request").pipe(
-  Effect.annotateLogs("userId", userId),
-  Effect.annotateLogs("action", "create"),
-);
-```
-
-**Tracking duration** with `Effect.withLogSpan`:
-
-```typescript
-const createUser = Effect.gen(function* () {
-  yield* Effect.logInfo("Creating user");
-  const result = yield* db.insert(user);
-  return result;
-}).pipe(Effect.withLogSpan("createUser"));
-```
-
-**Environment configuration**:
-- `PUBLIC_LOG_LEVEL` - Set minimum log level (all, trace, debug, info, warning, error, fatal, none)
-- `PUBLIC_LOG_FORMAT` - Output format (pretty, json). Defaults to pretty in dev, json in production.
-
-**Layer usage**:
-- Client-side services use `MainLayer` (includes `LoggingLayer`)
-- API routes use `ServerLayer` (includes `SessionRepository` + `LoggingLayer`)
-
-## Testing
-
-This project uses [Vitest](https://vitest.dev/) with [@effect/vitest](https://effect.website/docs/guides/testing) for testing Effect services.
-
-### Running Tests
-
-```bash
-bun run test        # Run once
-bun run test:watch  # Watch mode
-```
-
-### Writing Tests
-
-```typescript
-import { describe, expect, it } from "@effect/vitest";
-import { Effect } from "effect";
-
-describe("MyService", () => {
-  it.effect("does something", () =>
-    Effect.gen(function* () {
-      const result = yield* MyService.doSomething;
-      expect(result).toBe("done");
-    }).pipe(Effect.provide(MyService.Default)),
-  );
-});
-```
-
-## Database Changes
-
-The project uses SQLite with Drizzle ORM. When making schema changes:
-
-1. Modify schema in `src/db/schema.ts`
-2. Generate migration: `bun run db:generate`
-3. Review the SQL in `src/db/migrations/`
-4. Apply migration: `bun run db:migrate`
-5. Include the migration file in your PR
-
-Useful commands:
-
-- `bun run db:studio` - Open database GUI
-- `bun run db:clean` - Clear all data
-
-## Project Structure
+## Layout
 
 ```
-spotify-pomodoro/
-├── src/
-│   ├── pages/              # Astro pages and API routes
-│   │   └── api/            # REST API endpoints
-│   ├── components/         # React components
-│   │   └── ui/             # shadcn/ui components
-│   ├── hooks/              # React hooks
-│   ├── effect/
-│   │   ├── services/       # Effect services
-│   │   ├── schema/         # Effect Schema definitions
-│   │   └── errors/         # Tagged error types
-│   ├── db/                 # Database schema and migrations
-│   ├── lib/                # Utility functions
-│   └── styles/             # Global CSS
-├── test/                   # Test files
-├── scripts/                # Utility scripts
-└── public/                 # Static assets
+src/
+  shared/      Schemas, errors, and the HttpApi definition (server + browser)
+  server/      HttpApi handlers, services, SQL, migrations
+  client/      Browser services (timer, Spotify, recording) and atoms
+  components/  React components
+  pages/       Astro pages; /api/* and /callback hand off to the Effect server
+test/          Vitest: server, client, shared, live
+e2e/           Playwright
+scripts/       Token minting, Docker smoke test
 ```
 
-## Pull Request Process
+## Database
 
-1. **Branch naming**: Use descriptive names like `feat/volume-control` or `fix/timer-reset`
-
-2. **Commit messages**: Use conventional commit format:
-   - `feat: add volume control slider`
-   - `fix: handle timer overflow`
-   - `refactor: extract timer logic`
-   - `docs: update README`
-
-3. **PR checklist**:
-   - [ ] Code passes `bun run lint`
-   - [ ] Code passes `bun run typecheck`
-   - [ ] Code passes `bun run test`
-   - [ ] JSDoc comments for public APIs
-   - [ ] No inline/block comments (JSDoc only)
-   - [ ] Database migrations included (if schema changed)
-
-4. **Review process**: PRs require one approval before merging
-
-## Versioning
-
-This project follows [Semantic Versioning](https://semver.org/):
-
-- **MAJOR**: Breaking changes to UI or behavior
-- **MINOR**: New features, backward compatible
-- **PATCH**: Bug fixes, backward compatible
-
-## Questions?
-
-Open an issue or discussion on GitHub.
+Migrations live in `src/server/migrations/` and run automatically at startup. Add a new `NNNN_name.ts` file exporting an Effect and register it in `src/server/Database.ts`.

@@ -88,6 +88,10 @@ test.describe("Timer", () => {
 
 		await page.getByRole("button", { name: "Short" }).click();
 		await expect(timerDisplay).toContainText("15");
+		await expect(page.getByRole("button", { name: "Short" })).toHaveAttribute(
+			"aria-pressed",
+			"true",
+		);
 
 		await page.getByRole("button", { name: "Long" }).click();
 		await expect(timerDisplay).toContainText("50");
@@ -136,14 +140,19 @@ test.describe("Timer", () => {
 		await expect(timerDisplay).toContainText("03");
 	});
 
-	test("keybinds are ignored when input is focused", async ({ page }) => {
-		const input = page.locator("input").first();
-		const hasInput = (await input.count()) > 0;
+	test("R is ignored while running", async ({ page }) => {
+		await page.keyboard.press("Space");
+		await expect(page.getByText("focus")).toBeVisible();
+		await page.keyboard.press("r");
+		await expect(
+			page.getByText("press b to start break", { exact: false }),
+		).toBeVisible();
+	});
 
-		if (hasInput) {
-			await input.focus();
-			await page.keyboard.press("Space");
-			await expect(page.getByText("press space to start")).toBeVisible();
-		}
+	test("the countdown ticks", async ({ page }) => {
+		await page.keyboard.press("Space");
+		await expect(page.locator(".timer-display")).toContainText("24", {
+			timeout: 5_000,
+		});
 	});
 });

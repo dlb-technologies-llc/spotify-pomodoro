@@ -4,18 +4,13 @@
  * @module
  */
 
+import { useAtom } from "@effect/atom-react";
+import { Cause, Exit, Option } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import { useState } from "react";
-import { cn } from "../lib/utils";
-
-/**
- * Login component props.
- *
- * @since 1.1.0
- * @category Components
- */
-interface LoginProps {
-	returnUrl?: string;
-}
+import { loginAtom, loginErrorMessage, safeReturnPath } from "@/client/login";
+import { cn } from "@/lib/utils";
+import { AUTH_USERNAME } from "@/shared/domain/Auth";
 
 /**
  * Login form with lofi aesthetic.
@@ -23,36 +18,23 @@ interface LoginProps {
  * @since 1.1.0
  * @category Components
  */
-export function Login({ returnUrl = "/" }: LoginProps) {
-	const username = "admin";
+export function Login({ returnUrl }: { readonly returnUrl?: string }) {
+	const username = AUTH_USERNAME;
 	const [password, setPassword] = useState("");
-	const [error, setError] = useState<string | null>(null);
-	const [isLoading, setIsLoading] = useState(false);
+	const [result, login] = useAtom(loginAtom, { mode: "promiseExit" });
+	const isLoading = result.waiting;
+	const error = AsyncResult.isFailure(result)
+		? Option.match(Cause.findErrorOption(result.cause), {
+				onNone: () => "Connection failed",
+				onSome: loginErrorMessage,
+			})
+		: null;
 
-	const handleSubmit = async (e: React.SubmitEvent) => {
-		e.preventDefault();
-		setError(null);
-		setIsLoading(true);
-
-		try {
-			const response = await fetch("/api/auth/login", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ username, password }),
-			});
-
-			const data = await response.json();
-
-			if (!response.ok) {
-				setError(data.error || "Login failed");
-				setIsLoading(false);
-				return;
-			}
-
-			window.location.href = returnUrl;
-		} catch {
-			setError("Connection failed");
-			setIsLoading(false);
+	const handleSubmit = async (event: React.SubmitEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		const exit = await login(password);
+		if (Exit.isSuccess(exit)) {
+			window.location.href = safeReturnPath(returnUrl);
 		}
 	};
 

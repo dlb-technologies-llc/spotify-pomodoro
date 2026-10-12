@@ -4,10 +4,16 @@
  * @module
  */
 
+import { useAtomRefresh, useAtomValue } from "@effect/atom-react";
+import { AsyncResult } from "effect/reactivity";
 import { useMemo, useState } from "react";
-import type { DailyActivity, PeriodStats } from "@/effect/schema/Session";
-import { formatDuration, useStats } from "@/hooks/useStats";
+import { statsAtom } from "@/client/atoms";
 import { cn } from "@/lib/utils";
+import type {
+	DailyActivity,
+	PeriodStats,
+	StatsPeriod,
+} from "@/shared/domain/Stats";
 import {
 	Dialog,
 	DialogContent,
@@ -17,16 +23,29 @@ import {
 } from "./ui/dialog";
 
 /**
- * Props for StatsDialog component.
+ * Local calendar date as `YYYY-MM-DD`.
+ *
+ * @since 2.0.0
+ * @category Helpers
+ */
+const localIsoDate = (date: Date) =>
+	[
+		date.getFullYear(),
+		String(date.getMonth() + 1).padStart(2, "0"),
+		String(date.getDate()).padStart(2, "0"),
+	].join("-");
+
+/**
+ * Formats seconds as `1h 5m` or `5m`.
  *
  * @since 0.2.0
- * @category Components
+ * @category Helpers
  */
-interface StatsDialogProps {
-	children: React.ReactNode;
+export function formatDuration(totalSeconds: number): string {
+	const hours = Math.floor(totalSeconds / 3600);
+	const minutes = Math.floor((totalSeconds % 3600) / 60);
+	return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
-
-type TimePeriod = "today" | "week" | "month" | "year" | "all";
 
 /**
  * Dialog displaying pomodoro session statistics.
@@ -34,28 +53,21 @@ type TimePeriod = "today" | "week" | "month" | "year" | "all";
  * @since 0.2.0
  * @category Components
  */
-export function StatsDialog({ children }: StatsDialogProps) {
-	const { stats, loading, error, refetch } = useStats();
-	const [period, setPeriod] = useState<TimePeriod>("today");
-
-	const periodStats = useMemo(() => {
-		if (!stats) return null;
-		switch (period) {
-			case "today":
-				return stats.today;
-			case "week":
-				return stats.week;
-			case "month":
-				return stats.month;
-			case "year":
-				return stats.year;
-			case "all":
-				return stats.all;
-		}
-	}, [stats, period]);
+export function StatsDialog({
+	children,
+}: {
+	readonly children: React.ReactNode;
+}) {
+	const result = useAtomValue(statsAtom);
+	const refresh = useAtomRefresh(statsAtom);
+	const [period, setPeriod] = useState<StatsPeriod>("today");
+	const stats = AsyncResult.getOrElse(result, () => undefined);
+	const loading = result.waiting || AsyncResult.isInitial(result);
+	const failed = AsyncResult.isFailure(result);
+	const periodStats = stats?.[period];
 
 	return (
-		<Dialog onOpenChange={(open) => open && refetch()}>
+		<Dialog onOpenChange={(open) => open && refresh()}>
 			<DialogTrigger asChild>{children}</DialogTrigger>
 			<DialogContent
 				className={cn(
@@ -77,7 +89,11 @@ export function StatsDialog({ children }: StatsDialogProps) {
 					</div>
 				)}
 
-				{error && <div className="py-8 text-center text-red-500">{error}</div>}
+				{failed && !loading && (
+					<div className="py-8 text-center text-red-500">
+						Failed to load statistics
+					</div>
+				)}
 
 				{stats && !loading && (
 					<div className="space-y-4">
@@ -108,24 +124,23 @@ export function StatsDialog({ children }: StatsDialogProps) {
 }
 
 /**
- * Props for PeriodTabs component.
- *
- * @since 0.3.0
- * @category Components
- */
-interface PeriodTabsProps {
-	period: TimePeriod;
-	onChange: (period: TimePeriod) => void;
-}
-
-/**
  * Tab buttons for selecting time period.
  *
  * @since 0.3.0
  * @category Components
  */
-function PeriodTabs({ period, onChange }: PeriodTabsProps) {
-	const tabs: { value: TimePeriod; label: string; shortLabel: string }[] = [
+function PeriodTabs({
+	period,
+	onChange,
+}: {
+	readonly period: StatsPeriod;
+	readonly onChange: (period: StatsPeriod) => void;
+}) {
+	const tabs: ReadonlyArray<{
+		readonly value: StatsPeriod;
+		readonly label: string;
+		readonly shortLabel: string;
+	}> = [
 		{ value: "today", label: "Today", shortLabel: "D" },
 		{ value: "week", label: "Week", shortLabel: "W" },
 		{ value: "month", label: "Month", shortLabel: "M" },
@@ -157,22 +172,12 @@ function PeriodTabs({ period, onChange }: PeriodTabsProps) {
 }
 
 /**
- * Props for PeriodStatsGrid component.
- *
- * @since 0.3.0
- * @category Components
- */
-interface PeriodStatsGridProps {
-	stats: PeriodStats;
-}
-
-/**
  * Grid of stats for the selected period.
  *
  * @since 0.3.0
  * @category Components
  */
-function PeriodStatsGrid({ stats }: PeriodStatsGridProps) {
+function PeriodStatsGrid({ stats }: { readonly stats: PeriodStats }) {
 	return (
 		<div className="grid grid-cols-3 gap-2 sm:gap-3">
 			<StatCard label="Pomodoros" value={stats.pomodoros} />
@@ -183,23 +188,18 @@ function PeriodStatsGrid({ stats }: PeriodStatsGridProps) {
 }
 
 /**
- * Props for StatCard component.
- *
- * @since 0.2.0
- * @category Components
- */
-interface StatCardProps {
-	label: string;
-	value: string | number;
-}
-
-/**
  * Individual stat card for displaying a metric.
  *
  * @since 0.2.0
  * @category Components
  */
-function StatCard({ label, value }: StatCardProps) {
+function StatCard({
+	label,
+	value,
+}: {
+	readonly label: string;
+	readonly value: string | number;
+}) {
 	return (
 		<div
 			className={cn(
@@ -216,28 +216,22 @@ function StatCard({ label, value }: StatCardProps) {
 }
 
 /**
- * Props for ContributionGraph component.
- *
- * @since 0.3.0
- * @category Components
- */
-interface ContributionGraphProps {
-	dailyActivity: readonly DailyActivity[];
-}
-
-/**
  * GitHub-style contribution graph showing daily activity for a full year.
  *
  * @since 0.3.0
  * @category Components
  */
-function ContributionGraph({ dailyActivity }: ContributionGraphProps) {
+function ContributionGraph({
+	dailyActivity,
+}: {
+	readonly dailyActivity: ReadonlyArray<DailyActivity>;
+}) {
 	const currentYear = new Date().getFullYear();
 	const availableYears = useMemo(() => {
 		const years = new Set<number>();
 		years.add(currentYear);
 		for (const d of dailyActivity) {
-			years.add(new Date(d.date).getFullYear());
+			years.add(Number(d.date.slice(0, 4)));
 		}
 		return Array.from(years).sort((a, b) => b - a);
 	}, [dailyActivity, currentYear]);
@@ -274,7 +268,7 @@ function ContributionGraph({ dailyActivity }: ContributionGraphProps) {
 			for (let d = 0; d < 7; d++) {
 				const isOutOfYear =
 					currentDate.getFullYear() !== selectedYear || currentDate > today;
-				const dateStr = currentDate.toISOString().split("T")[0];
+				const dateStr = localIsoDate(currentDate);
 				const count = isOutOfYear ? 0 : activityMap.get(dateStr) || 0;
 
 				if (!isOutOfYear) {
@@ -411,33 +405,32 @@ function ContributionGraph({ dailyActivity }: ContributionGraphProps) {
 }
 
 /**
- * Props for ContributionCell component.
- *
- * @since 0.3.0
- * @category Components
- */
-interface ContributionCellProps {
-	date: string | null;
-	count: number;
-	intensity: number;
-}
-
-/**
  * Single cell in the contribution graph.
  *
  * @since 0.3.0
  * @category Components
  */
-function ContributionCell({ date, count, intensity }: ContributionCellProps) {
+function ContributionCell({
+	date,
+	count,
+	intensity,
+}: {
+	readonly date: string | null;
+	readonly count: number;
+	readonly intensity: number;
+}) {
 	if (intensity === -1 || !date) {
 		return <div className="aspect-square rounded-sm bg-transparent" />;
 	}
 
-	const formattedDate = new Date(date).toLocaleDateString("en-US", {
-		month: "short",
-		day: "numeric",
-		year: "numeric",
-	});
+	const formattedDate = new Date(`${date}T00:00:00`).toLocaleDateString(
+		"en-US",
+		{
+			month: "short",
+			day: "numeric",
+			year: "numeric",
+		},
+	);
 
 	return (
 		<div

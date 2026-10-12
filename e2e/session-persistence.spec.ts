@@ -1,161 +1,112 @@
 /**
- * E2E tests for session persistence through the full pomodoro lifecycle.
- *
- * Verifies that timer phase transitions trigger the correct API calls
- * and that session data persists to the database.
+ * Timer transitions record pomodoros and sessions through the API.
  *
  * @module
  */
-import { expect, test } from "@playwright/test";
+import { expect, type Page, type Response, test } from "@playwright/test";
 
-test.describe("Session Persistence", () => {
+const api = (page: Page, method: string, pattern: RegExp, status: number) =>
+	page.waitForResponse(
+		(r: Response) =>
+			r.request().method() === method &&
+			pattern.test(new URL(r.url()).pathname) &&
+			r.status() === status,
+	);
+
+const stats = async (page: Page) => {
+	const response = await page.request.get(
+		`/api/stats?tz=${encodeURIComponent("America/New_York")}`,
+	);
+	expect(response.ok()).toBe(true);
+	return response.json();
+};
+
+test.describe("Session persistence", () => {
 	test.beforeEach(async ({ page }) => {
 		await page.goto("/");
 		await expect(page.getByText("press space to start")).toBeVisible();
 	});
 
-	test("full pomodoro cycle persists to database", async ({ page }) => {
-		const apiCalls: { url: string; status: number; method: string }[] = [];
+	test("a full pomodoro cycle is recorded", async ({ page }) => {
+		const before = await stats(page);
 
-		page.on("response", (response) => {
-			const url = response.url();
-			if (url.includes("/api/")) {
-				apiCalls.push({
-					url: new URL(url).pathname,
-					status: response.status(),
-					method: response.request().method(),
-				});
-			}
-		});
-
-		/** Start focus session (Space) -> POST /api/pomodoros (201) + POST /api/focus-sessions (201) */
-		const pomodoroCreated = page.waitForResponse(
-			(r) => r.url().includes("/api/pomodoros") && r.status() === 201,
-		);
-		const focusCreated = page.waitForResponse(
-			(r) => r.url().includes("/api/focus-sessions") && r.status() === 201,
-		);
+		const created = api(page, "POST", /^\/api\/pomodoros$/, 201);
+		const focusStarted = api(page, "POST", /^\/api\/focus-sessions$/, 201);
 		await page.keyboard.press("Space");
 		await expect(page.getByText("focus")).toBeVisible();
-		await pomodoroCreated;
-		await focusCreated;
+		await Promise.all([created, focusStarted]);
 
-		/** Switch to break (B) -> POST /api/focus-sessions/:id/complete (200) + POST /api/break-sessions (201) */
-		const focusCompleted = page.waitForResponse(
-			(r) =>
-				r.url().includes("/api/focus-sessions/") &&
-				r.url().includes("/complete") &&
-				r.status() === 200,
+		const focusDone = api(
+			page,
+			"POST",
+			/^\/api\/focus-sessions\/[^/]+\/complete$/,
+			200,
 		);
-		const breakCreated = page.waitForResponse(
-			(r) => r.url().includes("/api/break-sessions") && r.status() === 201,
-		);
+		const breakStarted = api(page, "POST", /^\/api\/break-sessions$/, 201);
 		await page.keyboard.press("b");
 		await expect(page.getByText("break")).toBeVisible();
-		await focusCompleted;
-		await breakCreated;
+		await Promise.all([focusDone, breakStarted]);
 
-		/** End session (E) -> POST /api/break-sessions/:id/complete (200) + POST /api/pomodoros/:id/complete (200) */
-		const breakCompleted = page.waitForResponse(
-			(r) =>
-				r.url().includes("/api/break-sessions/") &&
-				r.url().includes("/complete") &&
-				r.status() === 200,
+		const breakDone = api(
+			page,
+			"POST",
+			/^\/api\/break-sessions\/[^/]+\/complete$/,
+			200,
 		);
-		const pomodoroCompleted = page.waitForResponse(
-			(r) =>
-				r.url().includes("/api/pomodoros/") &&
-				r.url().includes("/complete") &&
-				r.status() === 200,
+		const pomodoroDone = api(
+			page,
+			"POST",
+			/^\/api\/pomodoros\/[^/]+\/complete$/,
+			200,
 		);
 		await page.keyboard.press("e");
 		await expect(page.getByText("press space to start")).toBeVisible();
-		await breakCompleted;
-		await pomodoroCompleted;
+		await Promise.all([breakDone, pomodoroDone]);
 
-		const pomodoroCreates = apiCalls.filter(
-			(c) => c.url === "/api/pomodoros" && c.method === "POST",
+		const after = await stats(page);
+		expect(after.totalPomodoros).toBe(before.totalPomodoros + 1);
+		expect(after.completedPomodoros).toBe(before.completedPomodoros + 1);
+		expect(after.completedFocusSessions).toBe(
+			before.completedFocusSessions + 1,
 		);
-		expect(pomodoroCreates.length).toBeGreaterThanOrEqual(1);
-
-		const focusCreates = apiCalls.filter(
-			(c) => c.url === "/api/focus-sessions" && c.method === "POST",
+		expect(after.completedBreakSessions).toBe(
+			before.completedBreakSessions + 1,
 		);
-		expect(focusCreates.length).toBeGreaterThanOrEqual(1);
-
-		const breakCreates = apiCalls.filter(
-			(c) => c.url === "/api/break-sessions" && c.method === "POST",
-		);
-		expect(breakCreates.length).toBeGreaterThanOrEqual(1);
-
-		const focusCompletes = apiCalls.filter(
-			(c) =>
-				c.url.startsWith("/api/focus-sessions/") &&
-				c.url.endsWith("/complete") &&
-				c.method === "POST",
-		);
-		expect(focusCompletes.length).toBeGreaterThanOrEqual(1);
-
-		const breakCompletes = apiCalls.filter(
-			(c) =>
-				c.url.startsWith("/api/break-sessions/") &&
-				c.url.endsWith("/complete") &&
-				c.method === "POST",
-		);
-		expect(breakCompletes.length).toBeGreaterThanOrEqual(1);
-
-		const pomodoroCompletes = apiCalls.filter(
-			(c) =>
-				c.url.startsWith("/api/pomodoros/") &&
-				c.url.endsWith("/complete") &&
-				c.method === "POST",
-		);
-		expect(pomodoroCompletes.length).toBeGreaterThanOrEqual(1);
-
-		/** Verify stats reflect the persisted data */
-		const statsResponse = await page.request.get("/api/stats");
-		expect(statsResponse.ok()).toBe(true);
-		const stats = await statsResponse.json();
-		expect(stats.totalPomodoros).toBeGreaterThanOrEqual(1);
 	});
 
-	test("stats reflect completed sessions", async ({ page }) => {
-		/** Run a quick pomodoro cycle: focus -> break -> end */
-		const focusCreated = page.waitForResponse(
-			(r) => r.url().includes("/api/focus-sessions") && r.status() === 201,
+	test("the stats dialog shows recorded pomodoros", async ({ page }) => {
+		const pomodoroDone = api(
+			page,
+			"POST",
+			/^\/api\/pomodoros\/[^/]+\/complete$/,
+			200,
 		);
 		await page.keyboard.press("Space");
 		await expect(page.getByText("focus")).toBeVisible();
-		await focusCreated;
-
-		const breakCreated = page.waitForResponse(
-			(r) => r.url().includes("/api/break-sessions") && r.status() === 201,
-		);
-		await page.keyboard.press("b");
-		await expect(page.getByText("break")).toBeVisible();
-		await breakCreated;
-
-		/** Wait for all completion API calls to finish */
-		const pomodoroCompleted = page.waitForResponse(
-			(r) =>
-				r.url().includes("/api/pomodoros/") &&
-				r.url().includes("/complete") &&
-				r.status() === 200,
-		);
 		await page.keyboard.press("e");
-		await expect(page.getByText("press space to start")).toBeVisible();
-		await pomodoroCompleted;
+		await pomodoroDone;
 
-		/** Verify stats endpoint returns valid data */
-		const response = await page.request.get("/api/stats");
-		expect(response.ok()).toBe(true);
-		const stats = await response.json();
+		const { completedPomodoros } = await stats(page);
+		await page.getByRole("button", { name: "statistics" }).click();
+		const dialog = page.getByRole("dialog");
+		await expect(dialog.getByText("Statistics")).toBeVisible();
+		await expect(
+			dialog.getByText(`${completedPomodoros} total pomodoros completed`),
+		).toBeVisible();
+		await dialog.getByRole("button", { name: "Week" }).click();
+		await expect(dialog.getByText("Pomodoros", { exact: true })).toBeVisible();
+	});
+});
 
-		expect(stats.totalPomodoros).toBeGreaterThanOrEqual(1);
-		expect(stats.completedPomodoros).toBeGreaterThanOrEqual(1);
-		expect(stats.completedFocusSessions).toBeGreaterThanOrEqual(1);
-		expect(stats.completedBreakSessions).toBeGreaterThanOrEqual(1);
-		expect(stats.totalFocusSeconds).toBeGreaterThanOrEqual(0);
-		expect(stats.totalBreakSeconds).toBeGreaterThanOrEqual(0);
+test.describe("Theme", () => {
+	test("toggle persists across reloads", async ({ page }) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await page.goto("/");
+		const html = page.locator("html");
+		await expect(html).not.toHaveClass(/dark/);
+		await page.getByRole("button", { name: "toggle theme" }).click();
+		await expect(html).toHaveClass(/dark/);
+		await page.reload();
+		await expect(html).toHaveClass(/dark/);
 	});
 });

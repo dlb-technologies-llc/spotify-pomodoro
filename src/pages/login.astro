@@ -9,7 +9,6 @@
 import "@/styles/global.css";
 import { Login as LoginForm } from "@/components/Login";
 
-// biome-ignore lint/correctness/noUnusedVariables: used in template below
 const returnUrl = Astro.url.searchParams.get("return") || "/";
 export const prerender = false;
 ---
