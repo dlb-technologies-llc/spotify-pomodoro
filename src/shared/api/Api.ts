@@ -24,6 +24,7 @@ import {
 	BreakSession,
 	BreakSessionId,
 	BreakSessionNotFound,
+	CompletePomodoro,
 	CompleteSession,
 	CreatePomodoro,
 	FocusSession,
@@ -162,6 +163,7 @@ export class SessionsApi extends HttpApiGroup.make("sessions")
 		}),
 		HttpApiEndpoint.post("completePomodoro", "/pomodoros/:id/complete", {
 			params: { id: PomodoroId },
+			query: CompletePomodoro,
 			success: Pomodoro.json,
 			error: PomodoroNotFound,
 		}),

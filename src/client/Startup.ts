@@ -28,6 +28,11 @@ export const StartupLive = Layer.effectDiscard(
 		const error = url.searchParams.get("error");
 		if (Option.isSome(token)) yield* auth.save(token.value);
 		if (error) yield* playback.showError(`Spotify connection failed: ${error}`);
+		if (import.meta.env.PROD && "serviceWorker" in navigator) {
+			yield* Effect.promise(() =>
+				navigator.serviceWorker.register("/sw.js").catch(() => undefined),
+			);
+		}
 		if (Option.isSome(token) || error || hash.has(TOKEN_FRAGMENT)) {
 			yield* Effect.sync(() =>
 				window.history.replaceState(null, "", url.pathname),

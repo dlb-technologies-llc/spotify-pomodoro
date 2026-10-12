@@ -3,27 +3,28 @@
  *
  * @module
  */
-import { useAtom, useAtomSet, useAtomValue } from "@effect/atom-react";
-import { Option } from "effect";
+import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
 import { X } from "lucide-react";
 import { useEffect, useEffectEvent } from "react";
 import {
-	clearPlaybackErrorAtom,
-	clearTabTookOverAtom,
-	playerAtom,
+	dismissToastAtom,
 	resetAtom,
 	skipAtom,
 	startAtom,
 	stopAtom,
 	themeAtom,
+	themePreferenceAtom,
 	timerAtom,
+	toastsAtom,
 } from "@/client/atoms";
 import { cn } from "@/lib/utils";
+import type { ToastKind } from "@/client/Toasts";
 import { isBreak, phaseLabel, type TimerState } from "@/shared/domain/Timer";
+import { Onboarding } from "./Onboarding";
 import { PresetSelector } from "./PresetSelector";
 import { SpotifyControls } from "./Spotify";
-import { CycleDots, GoalProgress, LabelInput } from "./SessionMeta";
+import { CycleDots, GoalProgress, LabelInput, SyncStatus } from "./SessionMeta";
 import { SettingsDialog } from "./SettingsDialog";
 import { StatsDialog } from "./StatsDialog";
 
@@ -47,6 +48,13 @@ const BADGE = {
 	break: "bg-[var(--lofi-break-bg)] text-[var(--lofi-break)]",
 	longBreak: "bg-[var(--lofi-break-bg)] text-[var(--lofi-break)]",
 } satisfies Record<Exclude<TimerState["phase"], "idle"> | "overtime", string>;
+
+const TOAST_STYLE = {
+	success:
+		"bg-[var(--lofi-focus-bg)] border-[var(--lofi-focus)]/30 text-[var(--lofi-focus)]",
+	info: "bg-yellow-500/10 border-yellow-500/20 text-yellow-800 dark:text-yellow-300",
+	error: "bg-destructive/10 border-destructive/20 text-destructive",
+} satisfies Record<ToastKind, string>;
 
 const hint = (state: TimerState) => {
 	if (state.status === "running") {
@@ -144,19 +152,34 @@ function useTabTitle(state: TimerState | undefined) {
 }
 
 /**
+ * What a screen reader should hear about the current phase.
+ *
+ * @since 2.1.0
+ * @category Helpers
+ */
+export const phaseAnnouncement = (state: TimerState) => {
+	if (state.phase === "idle") return "";
+	if (state.isOvertime) return `${phaseLabel(state.phase)} time is up`;
+	const minutes = Math.round(state.config.durationOf(state.phase) / 60);
+	return `${phaseLabel(state.phase)} started, ${minutes} minutes`;
+};
+
+/**
  * Applies the persisted theme to the document.
  *
  * @since 0.0.1
  * @category Hooks
  */
 function useTheme() {
-	const [theme, setTheme] = useAtom(themeAtom);
+	const theme = useAtomValue(themeAtom);
+	const setPreference = useAtomSet(themePreferenceAtom);
 	useEffect(() => {
 		document.documentElement.classList.toggle("dark", theme === "dark");
+		document.documentElement.style.colorScheme = theme;
 	}, [theme]);
 	return {
 		isDark: theme === "dark",
-		toggle: () => setTheme(theme === "dark" ? "light" : "dark"),
+		toggle: () => setPreference(theme === "dark" ? "light" : "dark"),
 	};
 }
 
@@ -251,7 +274,7 @@ export function App() {
 					<PresetSelector config={timer.config} />
 					<div
 						className={cn(
-							"relative px-10 py-8 rounded-2xl bg-card/40 backdrop-blur-sm",
+							"relative px-5 py-6 sm:px-10 sm:py-8 rounded-2xl bg-card/40 backdrop-blur-sm",
 							"border border-border/30",
 							"transition-all duration-500",
 							glowClass,
@@ -296,13 +319,14 @@ export function App() {
 
 					<LabelInput />
 
-					<span className="text-muted-foreground/40 text-xs tracking-wide pointer-coarse:hidden">
+					<span className="text-muted-foreground/90 text-xs tracking-wide pointer-coarse:hidden">
 						{hint(timer)}
 					</span>
 
 					<SpotifyControls />
 
 					<GoalProgress />
+					<SyncStatus />
 				</div>
 			</main>
 
@@ -311,13 +335,18 @@ export function App() {
 					href="https://github.com/dlb-technologies-llc/spotify-pomodoro"
 					target="_blank"
 					rel="noopener noreferrer"
-					className="text-muted-foreground/30 hover:text-muted-foreground/50 text-xs transition-colors"
+					className="text-muted-foreground/90 hover:text-foreground text-xs transition-colors"
 				>
 					spotify-pomodoro
 				</a>
 			</footer>
 
-			<PlaybackNotices />
+			<p className="sr-only" aria-live="polite" aria-atomic="true">
+				{phaseAnnouncement(timer)}
+			</p>
+
+			<Toaster />
+			<Onboarding />
 		</div>
 	);
 }
@@ -391,68 +420,44 @@ function TimerControls({ timer }: { readonly timer: TimerState }) {
 }
 
 /**
- * Playback error and tab-takeover toasts.
+ * On-screen messages, newest at the bottom.
  *
- * @since 2.0.0
+ * @since 2.1.0
  * @category Components
  */
-function PlaybackNotices() {
-	const player = AsyncResult.getOrElse(
-		useAtomValue(playerAtom),
-		() => undefined,
-	);
-	const clearError = useAtomSet(clearPlaybackErrorAtom);
-	const clearTabTookOver = useAtomSet(clearTabTookOverAtom);
-	if (!player) return null;
-
+function Toaster() {
+	const toasts = AsyncResult.getOrElse(useAtomValue(toastsAtom), () => []);
+	const dismiss = useAtomSet(dismissToastAtom);
 	return (
-		<>
-			{Option.isSome(player.error) && (
-				<div
-					role="alert"
-					className={cn(
-						"fixed bottom-4 left-1/2 -translate-x-1/2 z-50",
-						"px-4 py-3 rounded-xl",
-						"bg-destructive/10 border border-destructive/20",
-						"backdrop-blur-sm shadow-lg",
-						"flex items-center gap-3",
-					)}
-				>
-					<span className="text-sm text-destructive">{player.error.value}</span>
-					<button
-						type="button"
-						aria-label="dismiss"
-						onClick={() => clearError()}
-						className="text-muted-foreground hover:text-foreground transition-colors"
-					>
-						×
-					</button>
-				</div>
-			)}
-
-			{player.tabTookOver && (
-				<output
-					className={cn(
-						"fixed bottom-4 left-1/2 -translate-x-1/2 z-50",
-						"px-4 py-3 rounded-xl",
-						"bg-yellow-500/10 border border-yellow-500/20",
-						"backdrop-blur-sm shadow-lg",
-						"flex items-center gap-3",
-					)}
-				>
-					<span className="text-sm text-yellow-500">
-						Playback moved to another tab
-					</span>
-					<button
-						type="button"
-						aria-label="dismiss"
-						onClick={() => clearTabTookOver()}
-						className="text-yellow-500/60 hover:text-yellow-500 transition-colors"
-					>
-						<X className="w-4 h-4" />
-					</button>
-				</output>
-			)}
-		</>
+		<div className="fixed bottom-4 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 flex-col gap-2">
+			{toasts.map((toast) => {
+				const content = (
+					<>
+						<span className="text-sm">{toast.message}</span>
+						<button
+							type="button"
+							aria-label="dismiss"
+							onClick={() => dismiss(toast.id)}
+							className="ml-auto opacity-60 hover:opacity-100 transition-opacity"
+						>
+							<X className="w-4 h-4" />
+						</button>
+					</>
+				);
+				const className = cn(
+					"flex items-center gap-3 rounded-xl border px-4 py-3 shadow-lg backdrop-blur-sm",
+					TOAST_STYLE[toast.kind],
+				);
+				return toast.kind === "error" ? (
+					<div key={toast.id} role="alert" className={className}>
+						{content}
+					</div>
+				) : (
+					<output key={toast.id} className={className}>
+						{content}
+					</output>
+				);
+			})}
+		</div>
 	);
 }

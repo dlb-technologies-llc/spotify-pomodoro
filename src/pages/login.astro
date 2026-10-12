@@ -17,7 +17,11 @@ export const prerender = false;
 	<head>
 		<meta charset="utf-8" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<meta name="viewport" content="width=device-width" />
+		<link rel="manifest" href="/manifest.webmanifest" />
+		<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+		<meta name="theme-color" content="#f0ebe4" media="(prefers-color-scheme: light)" />
+		<meta name="theme-color" content="#1a1820" media="(prefers-color-scheme: dark)" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<meta name="generator" content={Astro.generator} />
 		<title>Login - Spotify Pomodoro</title>
 		<meta name="description" content="Login to access Spotify Pomodoro" />

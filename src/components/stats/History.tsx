@@ -139,9 +139,9 @@ function HistoryRow({
 					}
 					placeholder="no label"
 					aria-label={`label for pomodoro on ${when(entry)}`}
-					className="w-full truncate bg-transparent text-sm text-foreground/80 placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring rounded px-1 -mx-1"
+					className="w-full truncate bg-transparent text-sm text-foreground/80 placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-ring rounded px-1 -mx-1"
 				/>
-				<p className="text-muted-foreground/60">
+				<p className="text-muted-foreground/90">
 					{when(entry)}
 					{Option.isNone(entry.completedAt) && " · unfinished"}
 				</p>
@@ -181,7 +181,7 @@ function HistoryRow({
 					"rounded px-2 py-1",
 					confirming
 						? "bg-destructive/15 text-destructive"
-						: "text-muted-foreground/40 hover:text-destructive",
+						: "text-muted-foreground/90 hover:text-destructive",
 				)}
 			>
 				{confirming ? "delete?" : "×"}

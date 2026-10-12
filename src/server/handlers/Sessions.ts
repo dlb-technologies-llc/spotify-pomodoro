@@ -23,8 +23,8 @@ export const SessionsHandlers = HttpApiBuilder.group(
 			.handle("labelPomodoro", ({ params, payload }) =>
 				repo.labelPomodoro(params.id, payload),
 			)
-			.handle("completePomodoro", ({ params }) =>
-				repo.completePomodoro(params.id),
+			.handle("completePomodoro", ({ params, query }) =>
+				repo.completePomodoro(params.id, query.at),
 			)
 			.handle("startFocus", ({ payload }) => repo.startFocus(payload))
 			.handle("completeFocus", ({ params, payload }) =>

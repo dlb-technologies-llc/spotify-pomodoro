@@ -11,6 +11,7 @@ import { Playback, PlayerView } from "@/client/Playback";
 import { SettingsStore } from "@/client/SettingsStore";
 import { SpotifyAuth } from "@/client/SpotifyAuth";
 import { Timer } from "@/client/Timer";
+import { Toasts } from "@/client/Toasts";
 import { MusicSettings, Settings } from "@/shared/domain/Settings";
 import { Playlist } from "@/shared/domain/Spotify";
 import { sample } from "../support/arbitrary";
@@ -42,8 +43,6 @@ const director = (options: {
 				setVolume: () => Effect.void,
 				togglePin: () => Effect.succeed(Settings.defaults),
 				showError: () => Effect.void,
-				clearError: Effect.void,
-				clearTabTookOver: Effect.void,
 				reset: Effect.void,
 			};
 		}),
@@ -58,6 +57,7 @@ const director = (options: {
 	return MusicDirector.layer.pipe(
 		Layer.provideMerge(Timer.layer),
 		Layer.provideMerge(SettingsStore.layer),
+		Layer.provide(Toasts.layer),
 		Layer.provide(playback),
 		Layer.provide(auth),
 		Layer.provide(KeyValueStore.layerMemory),

@@ -13,7 +13,6 @@ import {
 	Ref,
 	Schedule,
 	Schema,
-	Stream,
 	SubscriptionRef,
 } from "effect";
 import {
@@ -31,6 +30,7 @@ import {
 } from "@/shared/domain/Spotify";
 import { MusicSettings, Settings } from "@/shared/domain/Settings";
 import { SettingsStore } from "./SettingsStore";
+import { Toasts } from "./Toasts";
 import { SpotifyClient } from "./SpotifyClient";
 import { WebPlaybackSdk } from "./WebPlaybackSdk";
 
@@ -64,8 +64,6 @@ export class PlayerView extends Schema.Class<PlayerView>("PlayerView")({
 	playback: Schema.Option(PlaybackState),
 	selected: Schema.Option(Playlist),
 	playingIntent: Schema.Boolean,
-	error: Schema.Option(Schema.String),
-	tabTookOver: Schema.Boolean,
 }) {
 	/**
 	 * The initial view.
@@ -76,8 +74,6 @@ export class PlayerView extends Schema.Class<PlayerView>("PlayerView")({
 		playback: Option.none(),
 		selected: Option.none(),
 		playingIntent: false,
-		error: Option.none(),
-		tabTookOver: false,
 	});
 
 	/**
@@ -133,6 +129,7 @@ export class Playback extends Context.Service<Playback>()(
 			const spotify = yield* SpotifyClient;
 			const sdk = yield* WebPlaybackSdk;
 			const settings = yield* SettingsStore;
+			const toasts = yield* Toasts;
 			const { music } = yield* settings.get;
 			const view = yield* SubscriptionRef.make(
 				new PlayerView({ ...PlayerView.empty, selected: music.focusPlaylist }),
@@ -175,14 +172,18 @@ export class Playback extends Context.Service<Playback>()(
 			);
 
 			const runFork = yield* FiberSet.makeRuntime();
-			const onClaimed = update((current) =>
-				Option.exists(
-					current.playback,
-					(playback) => playback.deviceSource === "browser",
+			const onClaimed = Effect.gen(function* () {
+				const current = yield* SubscriptionRef.get(view);
+				if (
+					!Option.exists(current.playback, (p) => p.deviceSource === "browser")
 				)
-					? { tabTookOver: true, playback: Option.none(), playingIntent: false }
-					: {},
-			);
+					return;
+				yield* update(() => ({
+					playback: Option.none(),
+					playingIntent: false,
+				}));
+				yield* toasts.show("info", "Playback moved to another tab");
+			});
 			yield* Effect.acquireRelease(
 				Effect.sync(() => {
 					const listener = (event: MessageEvent) => {
@@ -258,7 +259,6 @@ export class Playback extends Context.Service<Playback>()(
 					yield* update(() => ({
 						selected: Option.some(playlist),
 						playingIntent: true,
-						error: Option.none(),
 					}));
 					yield* playOnAnyDevice(playlist.uri);
 					yield* spotify.setShuffle(true).pipe(Effect.ignore);
@@ -274,10 +274,9 @@ export class Playback extends Context.Service<Playback>()(
 					Effect.logWarning("Playback failed to start", cause),
 				),
 				Effect.catch((error) =>
-					update(() => ({
-						playingIntent: false,
-						error: Option.some(playErrorMessage(error)),
-					})),
+					update(() => ({ playingIntent: false })).pipe(
+						Effect.andThen(toasts.show("error", playErrorMessage(error))),
+					),
 				),
 			);
 
@@ -330,9 +329,7 @@ export class Playback extends Context.Service<Playback>()(
 					yield* Effect.sleep("500 millis");
 					yield* refresh();
 				},
-				Effect.catch((error) =>
-					update(() => ({ error: Option.some(playErrorMessage(error)) })),
-				),
+				Effect.catch((error) => toasts.show("error", playErrorMessage(error))),
 			);
 
 			const skipTrack = (direction: "next" | "previous") =>
@@ -376,23 +373,7 @@ export class Playback extends Context.Service<Playback>()(
 				Effect.forkIn(scope),
 			);
 
-			const showError = (message: string) =>
-				update(() => ({ error: Option.some(message) }));
-
-			const clearTabTookOver = update(() => ({ tabTookOver: false }));
-
-			yield* SubscriptionRef.changes(view).pipe(
-				Stream.map((current) => current.tabTookOver),
-				Stream.changes,
-				Stream.filter((tookOver) => tookOver),
-				Stream.runForEach(() =>
-					clearTabTookOver.pipe(
-						Effect.delay("10 seconds"),
-						Effect.forkIn(scope),
-					),
-				),
-				Effect.forkIn(scope),
-			);
+			const showError = (message: string) => toasts.show("error", message);
 
 			return {
 				view,
@@ -408,8 +389,6 @@ export class Playback extends Context.Service<Playback>()(
 				setVolume,
 				togglePin,
 				showError,
-				clearError: update(() => ({ error: Option.none() })),
-				clearTabTookOver,
 				reset: SubscriptionRef.set(view, PlayerView.empty),
 			};
 		}),

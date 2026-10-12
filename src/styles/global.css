@@ -53,7 +53,7 @@
   --card-foreground: #2d2a3e;
   --popover: #faf8f5;
   --popover-foreground: #2d2a3e;
-  --primary: #a67570;
+  --primary: #7c524d;
   --primary-foreground: #ffffff;
   --secondary: #e5ded5;
   --secondary-foreground: #2d2a3e;
@@ -61,7 +61,7 @@
   --muted-foreground: #5a5668;
   --accent: #8a7d94;
   --accent-foreground: #2d2a3e;
-  --destructive: #c45a52;
+  --destructive: #9c3c35;
   --border: rgba(45, 42, 62, 0.12);
   --input: rgba(45, 42, 62, 0.1);
   --ring: #a67570;
@@ -80,16 +80,17 @@
   --sidebar-ring: #a67570;
 
   /* Lofi colors - deeper for light mode readability */
-  --lofi-focus: #4a8a5e;
+  --lofi-focus: #376746;
   --lofi-focus-bg: rgba(74, 138, 94, 0.15);
-  --lofi-break: #7a6a8a;
+  --lofi-break: #665873;
   --lofi-break-bg: rgba(122, 106, 138, 0.15);
-  --lofi-overtime: #d48a35;
+  --lofi-overtime: #82521c;
   --lofi-overtime-bg: rgba(212, 138, 53, 0.15);
-  --lofi-idle: #a67570;
+  --lofi-idle: #7c524d;
   --lofi-idle-bg: rgba(166, 117, 112, 0.12);
   --lofi-vinyl: #c4bab0;
   --lofi-vinyl-groove: rgba(45, 42, 62, 0.1);
+  --spotify-text: #116a30;
 }
 
 /* Dark mode */
@@ -136,6 +137,7 @@
   --lofi-idle-bg: rgba(212, 165, 165, 0.08);
   --lofi-vinyl: #1a1820;
   --lofi-vinyl-groove: rgba(255, 255, 255, 0.05);
+  --spotify-text: #1db954;
 }
 
 @layer base {
@@ -259,8 +261,9 @@
 
 /* Timer sizing - 50% larger */
 .timer-display {
-  font-size: clamp(6rem, 18vw, 15rem);
+  font-size: clamp(3.5rem, 18vw, 15rem);
   line-height: 1;
+  white-space: nowrap;
 }
 
 /* Ensure buttons inherit font size */
@@ -317,4 +320,15 @@
 .goal-progress::-moz-progress-bar {
   background: var(--lofi-focus);
   border-radius: 9999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -4,7 +4,7 @@
  * @module
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Effect, Option } from "effect";
+import { DateTime, Effect, Option } from "effect";
 import { TestClock } from "effect/testing";
 import { ApiClient } from "@/client/ApiClient";
 import { Pomodoro, Seconds } from "@/shared/domain/Session";
@@ -59,6 +59,7 @@ describe("sessions API", () => {
 			});
 			const completed = yield* sessions.completePomodoro({
 				params: { id: pomodoro.id },
+				query: {},
 			});
 			assert.isTrue(Option.isSome(completed.completedAt));
 
@@ -83,7 +84,7 @@ describe("sessions API", () => {
 			);
 
 			const pomodoro = yield* Effect.flip(
-				sessions.completePomodoro({ params: { id: missing.id } }),
+				sessions.completePomodoro({ params: { id: missing.id }, query: {} }),
 			);
 			assert.strictEqual(pomodoro._tag, "PomodoroNotFound");
 
@@ -188,7 +189,10 @@ describe("sessions API", () => {
 					params: { id: focus.id },
 					payload: { elapsedSeconds: 90 },
 				});
-				yield* sessions.completePomodoro({ params: { id: pomodoro.id } });
+				yield* sessions.completePomodoro({
+					params: { id: pomodoro.id },
+					query: {},
+				});
 				ids.push(pomodoro.id);
 				yield* TestClock.adjust("1 second");
 			}
@@ -240,5 +244,69 @@ describe("sessions API", () => {
 			assert.strictEqual(restored.totalPomodoros, 3);
 			assert.strictEqual(restored.totalFocusSeconds, 270);
 		}),
+	);
+
+	it.effect(
+		"accepts client ids and times so offline recordings replay safely",
+		() =>
+			Effect.gen(function* () {
+				const handler = yield* startServer();
+				const { sessions } = yield* Effect.provide(
+					ApiClient,
+					apiClientFor(handler),
+				);
+				const { id } = yield* sample(Pomodoro);
+				const past = Date.parse("2025-03-01T09:00:00Z");
+				const first = yield* sessions.createPomodoro({
+					query: { id, at: past },
+				});
+				const again = yield* sessions.createPomodoro({
+					query: { id, at: past + 5000 },
+				});
+				assert.strictEqual(first.id, id);
+				assert.strictEqual(DateTime.toEpochMillis(again.createdAt), past);
+
+				const focusId = crypto.randomUUID();
+				const focus = yield* sessions.startFocus({
+					payload: {
+						id: focusId,
+						pomodoroId: id,
+						configuredSeconds: 60,
+						at: past,
+					},
+				});
+				const duplicate = yield* sessions.startFocus({
+					payload: {
+						id: focusId,
+						pomodoroId: id,
+						configuredSeconds: 60,
+						at: past,
+					},
+				});
+				assert.strictEqual(duplicate.id, focus.id);
+				assert.strictEqual(DateTime.toEpochMillis(focus.startedAt), past);
+
+				const done = yield* sessions.completeFocus({
+					params: { id: focus.id },
+					payload: { elapsedSeconds: 60, at: past + 60_000 },
+				});
+				assert.deepStrictEqual(
+					Option.map(done.completedAt, DateTime.toEpochMillis),
+					Option.some(past + 60_000),
+				);
+
+				const future = yield* sessions.completePomodoro({
+					params: { id },
+					query: { at: Date.now() + 86_400_000 },
+				});
+				assert.isAtMost(
+					Option.getOrThrow(
+						Option.map(future.completedAt, DateTime.toEpochMillis),
+					),
+					Date.now(),
+				);
+				const stats = yield* sessions.stats({ query: {} });
+				assert.strictEqual(stats.totalPomodoros, 1);
+			}),
 	);
 });

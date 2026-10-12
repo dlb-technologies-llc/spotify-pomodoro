@@ -9,6 +9,7 @@ import { AsyncResult } from "effect/reactivity";
 import { useState } from "react";
 import {
 	labelAtom,
+	pendingSyncAtom,
 	relabelAtom,
 	settingsAtom,
 	todayCountAtom,
@@ -43,6 +44,23 @@ export function CycleDots({ timer }: { readonly timer: TimerState }) {
 }
 
 /**
+ * How many recordings are waiting to reach the server, e.g. while offline.
+ *
+ * @since 2.1.0
+ * @category Components
+ */
+export function SyncStatus() {
+	const pending = AsyncResult.getOrElse(useAtomValue(pendingSyncAtom), () => 0);
+	return (
+		<output className="text-xs text-muted-foreground/90">
+			{pending > 0
+				? `${pending} ${pending === 1 ? "change" : "changes"} waiting to sync`
+				: ""}
+		</output>
+	);
+}
+
+/**
  * Today's completed pomodoros against the daily goal.
  *
  * @since 2.1.0
@@ -61,7 +79,7 @@ export function GoalProgress() {
 	const goal = settings.dailyGoal;
 	const reached = today >= goal;
 	return (
-		<div className="flex flex-col items-center gap-1.5 text-xs text-muted-foreground/60">
+		<div className="flex flex-col items-center gap-1.5 text-xs text-muted-foreground/90">
 			<span aria-live="polite">
 				{reached ? `goal reached · ${today} today` : `${today} / ${goal} today`}
 			</span>
@@ -115,7 +133,7 @@ function LabelField({ saved }: { readonly saved: string }) {
 			aria-label="pomodoro label"
 			className={cn(
 				"w-64 bg-transparent text-center text-sm",
-				"text-muted-foreground placeholder:text-muted-foreground/30",
+				"text-muted-foreground placeholder:text-muted-foreground/70",
 				"border-b border-transparent hover:border-border focus:border-border",
 				"focus:outline-none transition-colors py-1",
 			)}

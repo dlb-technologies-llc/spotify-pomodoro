@@ -12,6 +12,7 @@ import {
 	Option,
 	Schema,
 } from "effect";
+import { Model } from "effect/schema";
 import { SqlClient, SqlSchema } from "effect/sql";
 import {
 	BreakSession,
@@ -173,17 +174,45 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 					),
 				);
 
-			const sessionDraft = (input: StartSession) => ({
+			const instant = (at: number | undefined) =>
+				Effect.map(DateTime.now, (now) =>
+					at === undefined || at > DateTime.toEpochMillis(now)
+						? now
+						: DateTime.makeUnsafe(at),
+				);
+
+			const sessionDraft = (input: StartSession, startedAt: DateTime.Utc) => ({
 				pomodoroId: input.pomodoroId,
 				configuredSeconds: input.configuredSeconds,
 				elapsedSeconds: 0,
+				startedAt: Model.Override(startedAt),
+				createdAt: Model.Override(startedAt),
 				completedAt: Option.none(),
 				completed: false,
 			});
 
+			const findFocus = SqlSchema.findOneOption({
+				Request: FocusSessionId,
+				Result: FocusSession,
+				execute: (id) => sql`SELECT * FROM focus_sessions WHERE id = ${id}`,
+			});
+			const findBreak = SqlSchema.findOneOption({
+				Request: BreakSessionId,
+				Result: BreakSession,
+				execute: (id) => sql`SELECT * FROM break_sessions WHERE id = ${id}`,
+			});
+			const decodeFocusId = Schema.decodeEffect(FocusSessionId);
+			const decodeBreakId = Schema.decodeEffect(BreakSessionId);
+
 			const createPomodoro = Effect.fn("SessionRepository.createPomodoro")(
 				function* (input: CreatePomodoro) {
+					if (input.id !== undefined) {
+						const existing = yield* findPomodoro(input.id);
+						if (Option.isSome(existing)) return existing.value;
+					}
 					const row = yield* Pomodoro.insert.makeEffect({
+						...(input.id === undefined ? {} : { id: input.id }),
+						createdAt: Model.Override(yield* instant(input.at)),
 						completedAt: Option.none(),
 						label: Option.fromUndefinedOr(input.label),
 					});
@@ -195,9 +224,9 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 			);
 
 			const completePomodoro = Effect.fn("SessionRepository.completePomodoro")(
-				function* (id: PomodoroId) {
+				function* (id: PomodoroId, at?: number) {
 					yield* Effect.annotateCurrentSpan("pomodoroId", id);
-					const completedAt = yield* DateTime.now;
+					const completedAt = yield* instant(at);
 					const updated = yield* Effect.orDie(
 						markPomodoroComplete({ id, completedAt }),
 					);
@@ -225,8 +254,19 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 				input: StartSession,
 			) {
 				yield* requirePomodoro(input.pomodoroId);
+				const id =
+					input.id === undefined
+						? undefined
+						: yield* Effect.orDie(decodeFocusId(input.id));
+				if (id !== undefined) {
+					const existing = yield* Effect.orDie(findFocus(id));
+					if (Option.isSome(existing)) return existing.value;
+				}
 				const row = yield* Effect.orDie(
-					FocusSession.insert.makeEffect(sessionDraft(input)),
+					FocusSession.insert.makeEffect({
+						...sessionDraft(input, yield* instant(input.at)),
+						...(id === undefined ? {} : { id }),
+					}),
 				);
 				return yield* Effect.orDie(insertFocus(row));
 			});
@@ -237,7 +277,7 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 						sessionId: id,
 						elapsedSeconds: input.elapsedSeconds,
 					});
-					const completedAt = yield* DateTime.now;
+					const completedAt = yield* instant(input.at);
 					const updated = yield* Effect.orDie(
 						markFocusComplete({
 							id,
@@ -256,8 +296,19 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 				input: StartSession,
 			) {
 				yield* requirePomodoro(input.pomodoroId);
+				const id =
+					input.id === undefined
+						? undefined
+						: yield* Effect.orDie(decodeBreakId(input.id));
+				if (id !== undefined) {
+					const existing = yield* Effect.orDie(findBreak(id));
+					if (Option.isSome(existing)) return existing.value;
+				}
 				const row = yield* Effect.orDie(
-					BreakSession.insert.makeEffect(sessionDraft(input)),
+					BreakSession.insert.makeEffect({
+						...sessionDraft(input, yield* instant(input.at)),
+						...(id === undefined ? {} : { id }),
+					}),
 				);
 				return yield* Effect.orDie(insertBreak(row));
 			});
@@ -268,7 +319,7 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 						sessionId: id,
 						elapsedSeconds: input.elapsedSeconds,
 					});
-					const completedAt = yield* DateTime.now;
+					const completedAt = yield* instant(input.at);
 					const updated = yield* Effect.orDie(
 						markBreakComplete({
 							id,
