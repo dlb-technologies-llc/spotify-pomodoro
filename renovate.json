@@ -1,0 +1,41 @@
+{
+	"$schema": "https://docs.renovatebot.com/renovate-schema.json",
+	"extends": [
+		"config:recommended",
+		":semanticCommits",
+		"helpers:pinGitHubActionDigestsToSemver"
+	],
+	"schedule": ["before 6am on monday"],
+	"timezone": "America/Chicago",
+	"labels": ["dependencies"],
+	"prConcurrentLimit": 5,
+	"lockFileMaintenance": { "enabled": true },
+	"packageRules": [
+		{
+			"groupName": "dev dependencies (non-major)",
+			"matchDepTypes": ["devDependencies"],
+			"matchUpdateTypes": ["minor", "patch"]
+		},
+		{
+			"groupName": "github actions",
+			"matchManagers": ["github-actions"]
+		},
+		{
+			"groupName": "effect",
+			"matchPackageNames": ["effect", "@effect/**"]
+		},
+		{
+			"groupName": "astro",
+			"matchPackageNames": ["astro", "@astrojs/**"]
+		},
+		{
+			"groupName": "oxc",
+			"matchPackageNames": ["oxlint", "oxlint-tsgolint", "oxfmt"]
+		},
+		{
+			"description": "The visual job's container must match @playwright/test, and screenshots may need updating (bun run test:visual:update).",
+			"groupName": "playwright",
+			"matchPackageNames": ["@playwright/test", "mcr.microsoft.com/playwright"]
+		}
+	]
+}

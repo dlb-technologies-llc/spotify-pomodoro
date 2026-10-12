@@ -10,8 +10,15 @@ test.describe("Authentication", () => {
 		await page.goto("/login");
 		const username = page.getByLabel("username");
 		await expect(username).toHaveValue("admin");
-		await expect(username).toHaveAttribute("readonly", "");
+		await expect(username).toBeEditable();
 		await expect(page.getByLabel("password")).toBeVisible();
+	});
+
+	test("an unknown username is rejected", async ({ page }) => {
+		await page.goto("/login");
+		await page.getByLabel("username").fill("someone-else");
+		await signIn(page, "test-password");
+		await expect(page.getByRole("alert")).toHaveText("Invalid credentials");
 	});
 
 	test("protected page redirects to login and back", async ({ page }) => {

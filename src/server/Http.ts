@@ -10,7 +10,9 @@ import { Api } from "@/shared/api/Api";
 import { loggingLayer } from "@/shared/Logging";
 import { Auth } from "./Auth";
 import { DatabaseLive } from "./Database";
+import { Backup, BackupScheduleLive } from "./Backup";
 import { AuthHandlers } from "./handlers/Auth";
+import { BackupHandlers } from "./handlers/Backups";
 import { DataHandlers } from "./handlers/Data";
 import { AuthorizationLive } from "./handlers/Authorization";
 import { SessionsHandlers } from "./handlers/Sessions";
@@ -18,6 +20,7 @@ import { SpotifyHandlers } from "./handlers/Spotify";
 import { SystemHandlers } from "./handlers/System";
 import { TelemetryHandlers } from "./handlers/Telemetry";
 import { EnvConfigProvider, ServerConfig } from "./ServerConfig";
+import { LoginLimiter } from "./LoginLimiter";
 import { MaintenanceLive } from "./Maintenance";
 import { SessionRepository } from "./SessionRepository";
 import { SpotifyOAuth } from "./SpotifyOAuth";
@@ -36,6 +39,7 @@ export const ApiRoutes = HttpApiBuilder.layer(Api).pipe(
 		SpotifyHandlers,
 		SessionsHandlers,
 		DataHandlers,
+		BackupHandlers,
 		TelemetryHandlers,
 	]),
 	Layer.provide(AuthorizationLive),
@@ -52,6 +56,8 @@ export const ApiServices = Layer.mergeAll(
 	SessionRepository.layer,
 	SpotifyOAuth.layer,
 	Auth.layer,
+	LoginLimiter.layer,
+	Backup.layer,
 ).pipe(Layer.provideMerge(ServerConfig.layer));
 
 /**
@@ -66,12 +72,17 @@ export const ApiApp = Layer.merge(ApiRoutes, MaintenanceLive).pipe(
 );
 
 /**
- * The complete production server.
+ * The complete production server, including scheduled backups.
  *
  * @since 2.0.0
  * @category Layers
  */
-export const ServerLive = ApiApp.pipe(
+export const ServerLive = Layer.mergeAll(
+	ApiRoutes,
+	MaintenanceLive,
+	BackupScheduleLive,
+).pipe(
+	Layer.provide(ApiServices),
 	Layer.provide(DatabaseLive),
 	Layer.provide(FetchHttpClient.layer),
 	Layer.provideMerge(TelemetryLive),

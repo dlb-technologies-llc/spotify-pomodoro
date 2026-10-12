@@ -6,7 +6,7 @@
 import { Effect, Layer } from "effect";
 import { FetchHttpClient } from "effect/http";
 import { Atom } from "effect/reactivity";
-import { AUTH_USERNAME } from "@/shared/domain/Auth";
+import { type LoginRequest, TooManyAttempts } from "@/shared/domain/Auth";
 import { ApiClient } from "./ApiClient";
 
 const runtime = Atom.runtime(
@@ -42,21 +42,29 @@ export const safeReturnPath = (value: string | null | undefined): string => {
  * @since 2.0.0
  * @category Helpers
  */
-export const loginErrorMessage = (error: { readonly _tag: string }) =>
-	error._tag === "InvalidCredentials"
-		? "Invalid credentials"
-		: error._tag === "AuthDisabled"
-			? "Login is not enabled on this server"
-			: "Connection failed";
+export const loginErrorMessage = (error: { readonly _tag: string }) => {
+	if (error instanceof TooManyAttempts) {
+		const minutes = Math.max(1, Math.ceil(error.retryAfterSeconds / 60));
+		return `Too many attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`;
+	}
+	switch (error._tag) {
+		case "InvalidCredentials":
+			return "Invalid credentials";
+		case "AuthDisabled":
+			return "Login is not enabled on this server";
+		default:
+			return "Connection failed";
+	}
+};
 
 /**
- * Submits the password; the server sets the session cookie on success.
+ * Submits the credentials; the server sets the session cookie on success.
  *
  * @since 2.0.0
  * @category Atoms
  */
-export const loginAtom = runtime.fn((password: string) =>
-	ApiClient.use((api) =>
-		api.auth.login({ payload: { username: AUTH_USERNAME, password } }),
-	).pipe(Effect.withSpan("Login.submit")),
+export const loginAtom = runtime.fn((payload: LoginRequest) =>
+	ApiClient.use((api) => api.auth.login({ payload })).pipe(
+		Effect.withSpan("Login.submit"),
+	),
 );

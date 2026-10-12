@@ -1,11 +1,13 @@
 /**
- * Redirects unauthenticated page requests to the login page when
- * `AUTH_ENABLED=true`. API routes enforce auth themselves.
+ * Adds security headers to every response, and redirects unauthenticated
+ * page requests to the login page when `AUTH_ENABLED=true`. API routes
+ * enforce auth themselves.
  *
  * @module
  */
 import { defineMiddleware } from "astro:middleware";
 import { isPageAllowed } from "@/server/PageAuth";
+import { withSecurityHeaders } from "@/server/SecurityHeaders";
 import { AUTH_COOKIE } from "@/shared/domain/Auth";
 
 /**
@@ -18,8 +20,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		pathname,
 		context.cookies.get(AUTH_COOKIE)?.value,
 	);
-	if (allowed) return next();
-	return context.redirect(
-		`/login?return=${encodeURIComponent(pathname + search)}`,
-	);
+	const response = allowed
+		? await next()
+		: context.redirect(
+				`/login?return=${encodeURIComponent(pathname + search)}`,
+			);
+	return withSecurityHeaders(context.request, response);
 });

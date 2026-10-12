@@ -7,6 +7,7 @@ import { assert, describe, it } from "@effect/vitest";
 import { Schema } from "effect";
 import { loginErrorMessage, safeReturnPath } from "@/client/login";
 import { PlayerView } from "@/client/Playback";
+import { TooManyAttempts } from "@/shared/domain/Auth";
 import { arrangePlaylists } from "@/components/Spotify";
 import {
 	BROWSER_DEVICE_NAME,
@@ -115,6 +116,14 @@ describe("login", () => {
 		assert.strictEqual(
 			loginErrorMessage({ _tag: "HttpClientError" }),
 			"Connection failed",
+		);
+		assert.strictEqual(
+			loginErrorMessage(new TooManyAttempts({ retryAfterSeconds: 30 })),
+			"Too many attempts. Try again in 1 minute.",
+		);
+		assert.strictEqual(
+			loginErrorMessage(new TooManyAttempts({ retryAfterSeconds: 601 })),
+			"Too many attempts. Try again in 11 minutes.",
 		);
 	});
 });

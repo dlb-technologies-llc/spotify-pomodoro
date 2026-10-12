@@ -60,6 +60,58 @@ jobs:
             test-results
           retention-days: 7
 
+  visual:
+    name: Visual regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.0-noble
+      options: --ipc=host
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright test --project=setup --project=visual
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: visual-diffs
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7
+
+  lighthouse:
+    name: Lighthouse budgets
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AUTH_ENABLED: "false"
+      PORT: "2510"
+      HOST: localhost
+      DATABASE_URL: file:./data/lhci.db
+      PUBLIC_SPOTIFY_CLIENT_ID: lighthouse
+      LOG_LEVEL: warning
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - run: bun run lighthouse
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lighthouse-report
+          path: lhci-report
+          retention-days: 7
+
   live:
     name: Live Spotify
     runs-on: ubuntu-latest
@@ -110,7 +162,7 @@ jobs:
 
   publish:
     name: Publish
-    needs: [check, e2e, live, docker]
+    needs: [check, e2e, visual, lighthouse, live, docker]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 20

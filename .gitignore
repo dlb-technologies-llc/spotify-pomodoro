@@ -34,3 +34,7 @@ playwright-report/
 playwright/.auth/
 blob-report/
 test-results/
+
+# Lighthouse CI
+.lighthouseci/
+lhci-report/

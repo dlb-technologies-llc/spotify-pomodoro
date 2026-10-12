@@ -19,7 +19,7 @@ import { AUTH_USERNAME } from "@/shared/domain/Auth";
  * @category Components
  */
 export function Login({ returnUrl }: { readonly returnUrl?: string }) {
-	const username = AUTH_USERNAME;
+	const [username, setUsername] = useState(AUTH_USERNAME);
 	const [password, setPassword] = useState("");
 	const [result, login] = useAtom(loginAtom, { mode: "promiseExit" });
 	const isLoading = result.waiting;
@@ -32,7 +32,7 @@ export function Login({ returnUrl }: { readonly returnUrl?: string }) {
 
 	const handleSubmit = async (event: React.SubmitEvent<HTMLFormElement>) => {
 		event.preventDefault();
-		const exit = await login(password);
+		const exit = await login({ username: username.trim(), password });
 		if (Exit.isSuccess(exit)) {
 			window.location.href = safeReturnPath(returnUrl);
 		}
@@ -97,12 +97,16 @@ export function Login({ returnUrl }: { readonly returnUrl?: string }) {
 									id="username"
 									type="text"
 									value={username}
-									readOnly
+									onChange={(e) => setUsername(e.target.value)}
+									required
 									autoComplete="username"
+									autoCapitalize="none"
+									spellCheck={false}
 									className={cn(
 										"w-full px-4 py-3 rounded-xl",
-										"bg-background/30 border border-border/30",
-										"text-muted-foreground cursor-not-allowed",
+										"bg-background/50 border border-border/50",
+										"text-foreground",
+										"focus:outline-none focus:ring-2 focus:ring-[var(--lofi-idle)]/30 focus:border-[var(--lofi-idle)]/50",
 										"transition-all duration-200",
 									)}
 								/>
@@ -135,6 +139,7 @@ export function Login({ returnUrl }: { readonly returnUrl?: string }) {
 
 							{error && (
 								<div
+									role="alert"
 									className={cn(
 										"px-4 py-3 rounded-xl text-sm",
 										"bg-destructive/10 text-destructive border border-destructive/20",

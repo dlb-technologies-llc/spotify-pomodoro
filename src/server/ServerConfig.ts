@@ -12,7 +12,51 @@ import {
 	Option,
 	Predicate,
 	Schema,
+	SchemaTransformation,
 } from "effect";
+import { AUTH_USERNAME, UserName } from "@/shared/domain/Auth";
+
+/**
+ * A user allowed to log in.
+ *
+ * @since 2.1.0
+ * @category Models
+ */
+export class AuthUser extends Schema.Class<AuthUser>("AuthUser")({
+	name: UserName,
+	password: Schema.RedactedFromValue(Schema.NonEmptyString),
+}) {}
+
+/**
+ * `AUTH_USERS`: comma-separated `name:password` pairs. A password may
+ * contain `:` but not `,`.
+ *
+ * @since 2.1.0
+ * @category Schemas
+ */
+export const AuthUsersFromString = Schema.String.pipe(
+	Schema.decodeTo(
+		Schema.Array(AuthUser).check(Schema.isMinLength(1)),
+		SchemaTransformation.transform<
+			ReadonlyArray<typeof AuthUser.Encoded>,
+			string
+		>({
+			decode: (list) =>
+				list
+					.split(",")
+					.map((entry) => entry.trim())
+					.filter((entry) => entry.length > 0)
+					.map((entry) => {
+						const at = entry.indexOf(":");
+						return at === -1
+							? { name: entry, password: "" }
+							: { name: entry.slice(0, at), password: entry.slice(at + 1) };
+					}),
+			encode: (users) =>
+				users.map((user) => `${user.name}:${user.password}`).join(","),
+		}),
+	),
+);
 
 /**
  * Settings for password login, present only when `AUTH_ENABLED=true`.
@@ -21,7 +65,7 @@ import {
  * @category Models
  */
 export class AuthSettings extends Schema.Class<AuthSettings>("AuthSettings")({
-	password: Schema.Redacted(Schema.String),
+	users: Schema.Array(AuthUser),
 	secret: Schema.Redacted(Schema.String),
 	maxAgeSeconds: Schema.Int,
 }) {}
@@ -31,7 +75,15 @@ const authSettings = Config.Boolean("AUTH_ENABLED").pipe(
 	Config.flatMap((enabled) =>
 		enabled
 			? Config.all({
-					password: Config.Redacted("AUTH_PASSWORD"),
+					users: Config.schema(AuthUsersFromString, "AUTH_USERS").pipe(
+						Config.orElse(() =>
+							Config.Redacted("AUTH_PASSWORD").pipe(
+								Config.map((password) => [
+									new AuthUser({ name: AUTH_USERNAME, password }),
+								]),
+							),
+						),
+					),
 					secret: Config.Redacted("AUTH_SECRET"),
 					maxAgeSeconds: Config.Int("AUTH_COOKIE_MAX_AGE").pipe(
 						Config.withDefault(7 * 24 * 60 * 60),
@@ -46,8 +98,8 @@ const authSettings = Config.Boolean("AUTH_ENABLED").pipe(
 /**
  * Environment-derived server settings.
  *
- * Fails at startup when `AUTH_ENABLED=true` and the password or secret is
- * missing.
+ * Fails at startup when `AUTH_ENABLED=true` and the secret, or both
+ * `AUTH_USERS` and `AUTH_PASSWORD`, are missing.
  *
  * @since 2.0.0
  * @category Services
@@ -57,6 +109,20 @@ export class ServerConfig extends Context.Service<ServerConfig>()(
 	{
 		make: Config.all({
 			auth: authSettings,
+			trustProxy: Config.Boolean("TRUST_PROXY").pipe(Config.withDefault(false)),
+			maxLoginAttempts: Config.Int("AUTH_MAX_ATTEMPTS").pipe(
+				Config.withDefault(5),
+			),
+			lockoutSeconds: Config.Int("AUTH_LOCKOUT_SECONDS").pipe(
+				Config.withDefault(15 * 60),
+			),
+			backupDir: Config.String("BACKUP_DIR").pipe(Config.option),
+			backupRetentionDays: Config.Int("BACKUP_RETENTION_DAYS").pipe(
+				Config.withDefault(7),
+			),
+			backupIntervalHours: Config.Int("BACKUP_INTERVAL_HOURS").pipe(
+				Config.withDefault(24),
+			),
 			secureCookies: Config.Boolean("SECURE_COOKIES").pipe(
 				Config.withDefault(import.meta.env.PROD),
 			),

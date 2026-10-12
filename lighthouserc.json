@@ -1,0 +1,41 @@
+{
+	"ci": {
+		"collect": {
+			"startServerCommand": "node ./dist/server/entry.mjs",
+			"startServerReadyPattern": "Server listening",
+			"url": ["http://localhost:2510/"],
+			"numberOfRuns": 3,
+			"settings": {
+				"preset": "desktop",
+				"chromeFlags": "--no-sandbox --headless=new"
+			}
+		},
+		"assert": {
+			"assertions": {
+				"categories:performance": ["error", { "minScore": 0.9 }],
+				"categories:accessibility": ["error", { "minScore": 0.95 }],
+				"categories:best-practices": ["error", { "minScore": 0.95 }],
+				"is-crawlable": "off",
+				"document-title": "error",
+				"meta-description": "error",
+				"html-has-lang": "error",
+				"resource-summary:script:size": [
+					"error",
+					{ "maxNumericValue": 700000 }
+				],
+				"resource-summary:total:size": ["error", { "maxNumericValue": 900000 }],
+				"resource-summary:third-party:count": [
+					"error",
+					{ "maxNumericValue": 4 }
+				],
+				"largest-contentful-paint": ["error", { "maxNumericValue": 2500 }],
+				"cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }],
+				"total-blocking-time": ["error", { "maxNumericValue": 200 }]
+			}
+		},
+		"upload": {
+			"target": "filesystem",
+			"outputDir": "./lhci-report"
+		}
+	}
+}

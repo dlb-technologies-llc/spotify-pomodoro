@@ -6,19 +6,20 @@
  * @module
  */
 
-const CACHE = "spotify-pomodoro-v1";
+const CACHE = "spotify-pomodoro-v2";
 const STATIC = [
 	"/favicon.svg",
 	"/manifest.webmanifest",
 	"/icons/icon-192.png",
 	"/icons/icon-512.png",
 ];
+const FRESH = ["/theme-init.js"];
 
 self.addEventListener("install", (event) => {
 	event.waitUntil(
 		caches
 			.open(CACHE)
-			.then((cache) => cache.addAll(STATIC))
+			.then((cache) => cache.addAll([...STATIC, ...FRESH]))
 			.then(() => self.skipWaiting()),
 	);
 });
@@ -53,7 +54,8 @@ const cacheFirst = async (request) => {
 };
 
 /**
- * Fetches a page, keeping the last successful copy for offline use.
+ * Fetches a page or unhashed script, keeping the last successful copy for
+ * offline use.
  *
  * @param {Request} request
  */
@@ -78,7 +80,7 @@ self.addEventListener("fetch", (event) => {
 	if (url.pathname.startsWith("/api/") || url.pathname === "/callback") return;
 	if (url.pathname.startsWith("/_astro/") || STATIC.includes(url.pathname)) {
 		event.respondWith(cacheFirst(request));
-	} else if (request.mode === "navigate") {
+	} else if (request.mode === "navigate" || FRESH.includes(url.pathname)) {
 		event.respondWith(networkFirst(request));
 	}
 });

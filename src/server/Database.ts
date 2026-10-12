@@ -10,6 +10,7 @@ import { Effect, Layer, String as Str } from "effect";
 import initial from "./migrations/0001_initial";
 import sessionIndexes from "./migrations/0002_session_indexes";
 import pomodoroLabel from "./migrations/0003_pomodoro_label";
+import pomodoroOwner from "./migrations/0004_pomodoro_owner";
 import { ServerConfig } from "./ServerConfig";
 
 /**
@@ -22,6 +23,7 @@ export const migrations = LibsqlMigrator.fromRecord({
 	"0001_initial": initial,
 	"0002_session_indexes": sessionIndexes,
 	"0003_pomodoro_label": pomodoroLabel,
+	"0004_pomodoro_owner": pomodoroOwner,
 });
 
 /**

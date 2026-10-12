@@ -436,6 +436,26 @@ export const importDataAtom = runtime.fn((text: string) =>
 );
 
 /**
+ * Server backups, newest first; refresh to reload.
+ *
+ * @since 2.1.0
+ * @category Stats
+ */
+export const backupsAtom = runtime.atom(
+	ApiClient.use((api) => api.backups.list()),
+);
+
+/**
+ * Backs up the server's database now.
+ *
+ * @since 2.1.0
+ * @category Stats
+ */
+export const createBackupAtom = runtime.fn(() =>
+	ApiClient.use((api) => api.backups.create()),
+);
+
+/**
  * Whether the first-run walkthrough has been seen.
  *
  * @since 2.1.0

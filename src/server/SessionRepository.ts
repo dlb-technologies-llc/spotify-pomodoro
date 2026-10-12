@@ -36,20 +36,27 @@ import {
 	HistoryPage,
 	ImportResult,
 } from "@/shared/domain/History";
+import { UserName } from "@/shared/domain/Auth";
+import { CurrentUser } from "./CurrentUser";
 import { computeStats } from "./Stats";
 
 const Completion = <Id extends Schema.Top>(id: Id) =>
 	Schema.Struct({
+		owner: UserName,
 		id,
 		elapsedSeconds: Seconds,
 		completedAt: Schema.DateTimeUtcFromMillis,
 	});
 
+const Owned = <S extends Schema.Top>(row: S) =>
+	Schema.Struct({ owner: UserName, row });
+
 /**
  * Repository for recording pomodoro cycles and reading statistics.
  *
- * Database and decoding failures are defects; only missing records are
- * expected errors.
+ * Every read and write is scoped to the {@link CurrentUser}: other users'
+ * records behave as if they did not exist. Database and decoding failures
+ * are defects; only missing records are expected errors.
  *
  * @since 0.2.0
  * @category Services
@@ -60,39 +67,46 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 		make: Effect.gen(function* () {
 			const sql = yield* SqlClient.SqlClient;
 
+			const owns = (owner: string) =>
+				sql`pomodoro_id IN (SELECT id FROM pomodoros WHERE user_id = ${owner})`;
+
 			const insertPomodoro = SqlSchema.findOne({
-				Request: Pomodoro.insert,
+				Request: Owned(Pomodoro.insert),
 				Result: Pomodoro,
-				execute: (row) =>
-					sql`INSERT INTO pomodoros ${sql.insert(row)} RETURNING *`,
+				execute: ({ owner, row }) =>
+					sql`INSERT INTO pomodoros ${sql.insert({ ...row, userId: owner })} RETURNING *`,
 			});
 			const findPomodoro = SqlSchema.findOneOption({
-				Request: PomodoroId,
+				Request: Schema.Struct({ owner: UserName, id: PomodoroId }),
 				Result: Pomodoro,
-				execute: (id) => sql`SELECT * FROM pomodoros WHERE id = ${id}`,
+				execute: ({ owner, id }) =>
+					sql`SELECT * FROM pomodoros WHERE id = ${id} AND user_id = ${owner}`,
 			});
 			const markPomodoroComplete = SqlSchema.findOneOption({
 				Request: Schema.Struct({
+					owner: UserName,
 					id: PomodoroId,
 					completedAt: Schema.DateTimeUtcFromMillis,
 				}),
 				Result: Pomodoro,
-				execute: ({ id, completedAt }) =>
-					sql`UPDATE pomodoros SET completed_at = ${completedAt} WHERE id = ${id} RETURNING *`,
+				execute: ({ owner, id, completedAt }) =>
+					sql`UPDATE pomodoros SET completed_at = ${completedAt} WHERE id = ${id} AND user_id = ${owner} RETURNING *`,
 			});
 			const setPomodoroLabel = SqlSchema.findOneOption({
 				Request: Schema.Struct({
+					owner: UserName,
 					id: PomodoroId,
 					label: Schema.NullOr(PomodoroLabel),
 				}),
 				Result: Pomodoro,
-				execute: ({ id, label }) =>
-					sql`UPDATE pomodoros SET label = ${label} WHERE id = ${id} RETURNING *`,
+				execute: ({ owner, id, label }) =>
+					sql`UPDATE pomodoros SET label = ${label} WHERE id = ${id} AND user_id = ${owner} RETURNING *`,
 			});
 			const allPomodoros = SqlSchema.findAll({
-				Request: Schema.Void,
+				Request: UserName,
 				Result: Pomodoro,
-				execute: () => sql`SELECT * FROM pomodoros`,
+				execute: (owner) =>
+					sql`SELECT * FROM pomodoros WHERE user_id = ${owner}`,
 			});
 
 			const insertFocus = SqlSchema.findOne({
@@ -104,13 +118,14 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 			const markFocusComplete = SqlSchema.findOneOption({
 				Request: Completion(FocusSessionId),
 				Result: FocusSession,
-				execute: ({ id, elapsedSeconds, completedAt }) =>
-					sql`UPDATE focus_sessions SET elapsed_seconds = ${elapsedSeconds}, completed_at = ${completedAt}, completed = 1 WHERE id = ${id} RETURNING *`,
+				execute: ({ owner, id, elapsedSeconds, completedAt }) =>
+					sql`UPDATE focus_sessions SET elapsed_seconds = ${elapsedSeconds}, completed_at = ${completedAt}, completed = 1 WHERE id = ${id} AND ${owns(owner)} RETURNING *`,
 			});
 			const allFocus = SqlSchema.findAll({
-				Request: Schema.Void,
+				Request: UserName,
 				Result: FocusSession,
-				execute: () => sql`SELECT * FROM focus_sessions`,
+				execute: (owner) =>
+					sql`SELECT * FROM focus_sessions WHERE ${owns(owner)}`,
 			});
 
 			const insertBreak = SqlSchema.findOne({
@@ -122,20 +137,25 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 			const markBreakComplete = SqlSchema.findOneOption({
 				Request: Completion(BreakSessionId),
 				Result: BreakSession,
-				execute: ({ id, elapsedSeconds, completedAt }) =>
-					sql`UPDATE break_sessions SET elapsed_seconds = ${elapsedSeconds}, completed_at = ${completedAt}, completed = 1 WHERE id = ${id} RETURNING *`,
+				execute: ({ owner, id, elapsedSeconds, completedAt }) =>
+					sql`UPDATE break_sessions SET elapsed_seconds = ${elapsedSeconds}, completed_at = ${completedAt}, completed = 1 WHERE id = ${id} AND ${owns(owner)} RETURNING *`,
 			});
 			const allBreaks = SqlSchema.findAll({
-				Request: Schema.Void,
+				Request: UserName,
 				Result: BreakSession,
-				execute: () => sql`SELECT * FROM break_sessions`,
+				execute: (owner) =>
+					sql`SELECT * FROM break_sessions WHERE ${owns(owner)}`,
 			});
 
 			const pomodorosBefore = SqlSchema.findAll({
-				Request: Schema.Struct({ before: Schema.Number, limit: Schema.Int }),
+				Request: Schema.Struct({
+					owner: UserName,
+					before: Schema.Number,
+					limit: Schema.Int,
+				}),
 				Result: Pomodoro,
-				execute: ({ before, limit }) =>
-					sql`SELECT * FROM pomodoros WHERE created_at < ${before} ORDER BY created_at DESC LIMIT ${limit}`,
+				execute: ({ owner, before, limit }) =>
+					sql`SELECT * FROM pomodoros WHERE user_id = ${owner} AND created_at < ${before} ORDER BY created_at DESC LIMIT ${limit}`,
 			});
 			const focusFor = SqlSchema.findAll({
 				Request: Schema.Array(PomodoroId),
@@ -151,9 +171,18 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 			});
 
 			const restorePomodoro = SqlSchema.void({
-				Request: Pomodoro,
-				execute: (row) => sql`INSERT INTO pomodoros ${sql.insert(row)}`,
+				Request: Owned(Pomodoro),
+				execute: ({ owner, row }) =>
+					sql`INSERT INTO pomodoros ${sql.insert({ ...row, userId: owner })}`,
 			});
+			const takenIds = Effect.map(
+				sql<{ readonly id: string }>`
+					SELECT id FROM pomodoros
+					UNION ALL SELECT id FROM focus_sessions
+					UNION ALL SELECT id FROM break_sessions
+				`,
+				(rows) => new Set(rows.map((row) => row.id)),
+			);
 			const restoreFocus = SqlSchema.void({
 				Request: FocusSession,
 				execute: (row) => sql`INSERT INTO focus_sessions ${sql.insert(row)}`,
@@ -163,8 +192,8 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 				execute: (row) => sql`INSERT INTO break_sessions ${sql.insert(row)}`,
 			});
 
-			const requirePomodoro = (id: PomodoroId) =>
-				findPomodoro(id).pipe(
+			const requirePomodoro = (owner: UserName, id: PomodoroId) =>
+				findPomodoro({ owner, id }).pipe(
 					Effect.orDie,
 					Effect.flatMap(
 						Option.match({
@@ -192,22 +221,25 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 			});
 
 			const findFocus = SqlSchema.findOneOption({
-				Request: FocusSessionId,
+				Request: Schema.Struct({ owner: UserName, id: FocusSessionId }),
 				Result: FocusSession,
-				execute: (id) => sql`SELECT * FROM focus_sessions WHERE id = ${id}`,
+				execute: ({ owner, id }) =>
+					sql`SELECT * FROM focus_sessions WHERE id = ${id} AND ${owns(owner)}`,
 			});
 			const findBreak = SqlSchema.findOneOption({
-				Request: BreakSessionId,
+				Request: Schema.Struct({ owner: UserName, id: BreakSessionId }),
 				Result: BreakSession,
-				execute: (id) => sql`SELECT * FROM break_sessions WHERE id = ${id}`,
+				execute: ({ owner, id }) =>
+					sql`SELECT * FROM break_sessions WHERE id = ${id} AND ${owns(owner)}`,
 			});
 			const decodeFocusId = Schema.decodeEffect(FocusSessionId);
 			const decodeBreakId = Schema.decodeEffect(BreakSessionId);
 
 			const createPomodoro = Effect.fn("SessionRepository.createPomodoro")(
 				function* (input: CreatePomodoro) {
+					const owner = yield* CurrentUser;
 					if (input.id !== undefined) {
-						const existing = yield* findPomodoro(input.id);
+						const existing = yield* findPomodoro({ owner, id: input.id });
 						if (Option.isSome(existing)) return existing.value;
 					}
 					const row = yield* Pomodoro.insert.makeEffect({
@@ -216,7 +248,7 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 						completedAt: Option.none(),
 						label: Option.fromUndefinedOr(input.label),
 					});
-					const pomodoro = yield* insertPomodoro(row);
+					const pomodoro = yield* insertPomodoro({ owner, row });
 					yield* Effect.annotateCurrentSpan("pomodoroId", pomodoro.id);
 					return pomodoro;
 				},
@@ -226,9 +258,10 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 			const completePomodoro = Effect.fn("SessionRepository.completePomodoro")(
 				function* (id: PomodoroId, at?: number) {
 					yield* Effect.annotateCurrentSpan("pomodoroId", id);
+					const owner = yield* CurrentUser;
 					const completedAt = yield* instant(at);
 					const updated = yield* Effect.orDie(
-						markPomodoroComplete({ id, completedAt }),
+						markPomodoroComplete({ owner, id, completedAt }),
 					);
 					return yield* Option.match(updated, {
 						onNone: () => Effect.fail(new PomodoroNotFound({ id })),
@@ -240,8 +273,9 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 			const labelPomodoro = Effect.fn("SessionRepository.labelPomodoro")(
 				function* (id: PomodoroId, input: LabelPomodoro) {
 					yield* Effect.annotateCurrentSpan("pomodoroId", id);
+					const owner = yield* CurrentUser;
 					const updated = yield* Effect.orDie(
-						setPomodoroLabel({ id, label: input.label }),
+						setPomodoroLabel({ owner, id, label: input.label }),
 					);
 					return yield* Option.match(updated, {
 						onNone: () => Effect.fail(new PomodoroNotFound({ id })),
@@ -253,13 +287,14 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 			const startFocus = Effect.fn("SessionRepository.startFocus")(function* (
 				input: StartSession,
 			) {
-				yield* requirePomodoro(input.pomodoroId);
+				const owner = yield* CurrentUser;
+				yield* requirePomodoro(owner, input.pomodoroId);
 				const id =
 					input.id === undefined
 						? undefined
 						: yield* Effect.orDie(decodeFocusId(input.id));
 				if (id !== undefined) {
-					const existing = yield* Effect.orDie(findFocus(id));
+					const existing = yield* Effect.orDie(findFocus({ owner, id }));
 					if (Option.isSome(existing)) return existing.value;
 				}
 				const row = yield* Effect.orDie(
@@ -277,9 +312,11 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 						sessionId: id,
 						elapsedSeconds: input.elapsedSeconds,
 					});
+					const owner = yield* CurrentUser;
 					const completedAt = yield* instant(input.at);
 					const updated = yield* Effect.orDie(
 						markFocusComplete({
+							owner,
 							id,
 							elapsedSeconds: input.elapsedSeconds,
 							completedAt,
@@ -295,13 +332,14 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 			const startBreak = Effect.fn("SessionRepository.startBreak")(function* (
 				input: StartSession,
 			) {
-				yield* requirePomodoro(input.pomodoroId);
+				const owner = yield* CurrentUser;
+				yield* requirePomodoro(owner, input.pomodoroId);
 				const id =
 					input.id === undefined
 						? undefined
 						: yield* Effect.orDie(decodeBreakId(input.id));
 				if (id !== undefined) {
-					const existing = yield* Effect.orDie(findBreak(id));
+					const existing = yield* Effect.orDie(findBreak({ owner, id }));
 					if (Option.isSome(existing)) return existing.value;
 				}
 				const row = yield* Effect.orDie(
@@ -319,9 +357,11 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 						sessionId: id,
 						elapsedSeconds: input.elapsedSeconds,
 					});
+					const owner = yield* CurrentUser;
 					const completedAt = yield* instant(input.at);
 					const updated = yield* Effect.orDie(
 						markBreakComplete({
+							owner,
 							id,
 							elapsedSeconds: input.elapsedSeconds,
 							completedAt,
@@ -337,8 +377,9 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 			const stats = Effect.fn("SessionRepository.stats")(function* (
 				timeZone: DateTime.TimeZone,
 			) {
+				const owner = yield* CurrentUser;
 				const [pomodoros, focusSessions, breakSessions] = yield* Effect.all(
-					[allPomodoros(), allFocus(), allBreaks()],
+					[allPomodoros(owner), allFocus(owner), allBreaks(owner)],
 					{ concurrency: "unbounded" },
 				);
 				const now = DateTime.makeZonedUnsafe(yield* Clock.currentTimeMillis, {
@@ -353,6 +394,7 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 					readonly limit: number;
 				}) {
 					const rows = yield* pomodorosBefore({
+						owner: yield* CurrentUser,
 						before: options.before,
 						limit: options.limit + 1,
 					});
@@ -407,7 +449,7 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 
 			const deletePomodoro = Effect.fn("SessionRepository.deletePomodoro")(
 				function* (id: PomodoroId) {
-					yield* requirePomodoro(id);
+					yield* requirePomodoro(yield* CurrentUser, id);
 					yield* sql
 						.withTransaction(
 							Effect.all([
@@ -421,8 +463,9 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 			);
 
 			const exportAll = Effect.fn("SessionRepository.exportAll")(function* () {
+				const owner = yield* CurrentUser;
 				const [pomodoros, focusSessions, breakSessions] = yield* Effect.all(
-					[allPomodoros(), allFocus(), allBreaks()],
+					[allPomodoros(owner), allFocus(owner), allBreaks(owner)],
 					{ concurrency: "unbounded" },
 				);
 				return { pomodoros, focusSessions, breakSessions };
@@ -436,14 +479,10 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 				}) {
 					return yield* sql.withTransaction(
 						Effect.gen(function* () {
-							const existing = yield* exportAll();
-							const known = new Set<string>([
-								...existing.pomodoros.map((p) => p.id),
-								...existing.focusSessions.map((s) => s.id),
-								...existing.breakSessions.map((s) => s.id),
-							]);
+							const owner = yield* CurrentUser;
+							const known = yield* takenIds;
 							const pomodoroIds = new Set<string>(
-								existing.pomodoros.map((p) => p.id),
+								(yield* allPomodoros(owner)).map((p) => p.id),
 							);
 							let skipped = 0;
 							const fresh = <A extends { readonly id: string }>(
@@ -457,7 +496,10 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 								});
 							const pomodoros = fresh(input.pomodoros);
 							for (const pomodoro of pomodoros) {
-								yield* restorePomodoro(new Pomodoro(pomodoro));
+								yield* restorePomodoro({
+									owner,
+									row: new Pomodoro(pomodoro),
+								});
 								pomodoroIds.add(pomodoro.id);
 							}
 							const attached = <A extends { readonly pomodoroId: string }>(
