@@ -30,7 +30,7 @@ describe("toCsv", () => {
 				focusSessions: [focus],
 				breakSessions: [],
 			});
-			const [, row] = csv.trim().split(/\n(?=[0-9a-f]{8}-)/);
+			const row = csv.slice(csv.indexOf("\n") + 1).trimEnd();
 			assert.strictEqual(
 				row,
 				`${pomodoro.id},"fix ""bug"", then\nship",2025-01-01T10:00:00.000Z,,1600,100,0,0`,

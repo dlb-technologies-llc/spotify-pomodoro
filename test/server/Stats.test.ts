@@ -281,17 +281,16 @@ describe("focus patterns", () => {
 				const [f1, f2] = yield* samples(FocusSession, 2);
 				if (!p || !f1 || !f2) return assert.fail("samples");
 				const done = completedPomodoro(p, "2025-06-18T15:00:00Z");
-				const at = (iso: string) => DateTime.makeUnsafe(iso);
 				const stats = computeStats({
 					pomodoros: [done],
 					focusSessions: [
 						new FocusSession({
 							...focusFor(f1, done, 1500, 1500),
-							startedAt: at("2025-06-18T14:10:00Z"),
+							startedAt: DateTime.makeUnsafe("2025-06-18T14:10:00Z"),
 						}),
 						new FocusSession({
 							...focusFor(f2, done, 1800, 1500),
-							startedAt: at("2025-06-18T14:40:00Z"),
+							startedAt: DateTime.makeUnsafe("2025-06-18T14:40:00Z"),
 						}),
 					],
 					breakSessions: [],
