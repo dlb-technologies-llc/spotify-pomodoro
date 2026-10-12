@@ -106,7 +106,10 @@ describe("SpotifyClient", () => {
 			Effect.gen(function* () {
 				const { layer } = yield* spotifyLayers({
 					token: Option.some(yield* freshToken),
-					spotify: () => json(Schema.encodeSync(SpotifyPlaylistsPage)(page)),
+					spotify: () =>
+						json(
+							Schema.encodeSync(SpotifyPlaylistsPage)({ ...page, next: null }),
+						),
 				});
 				const playlists = yield* SpotifyClient.use((c) => c.playlists).pipe(
 					Effect.provide(layer),
@@ -223,6 +226,95 @@ describe("SpotifyClient", () => {
 				).pipe(Effect.provide(layer), Effect.flip);
 				assert.strictEqual(error._tag, tag);
 			}
+		}),
+	);
+});
+
+describe("SpotifyClient paging and now playing", () => {
+	it.effect("follows playlist pages until there is no next link", () =>
+		Effect.gen(function* () {
+			const item = (n: number) => ({
+				id: `p${n}`,
+				name: `Playlist ${n}`,
+				uri: `spotify:playlist:p${n}`,
+				images: [],
+			});
+			const { layer, requests } = yield* spotifyLayers({
+				token: Option.some(yield* freshToken),
+				spotify: (request) =>
+					new URL(request.url).searchParams.get("offset") === "50"
+						? json({ next: null, items: [item(51)] })
+						: json({
+								next: "https://api.spotify.com/v1/me/playlists?offset=50&limit=50",
+								items: Array.from({ length: 50 }, (_, n) => item(n + 1)),
+							}),
+			});
+			const playlists = yield* SpotifyClient.use((c) => c.playlists).pipe(
+				Effect.provide(layer),
+			);
+			assert.strictEqual(playlists.length, 51);
+			assert.strictEqual(requests.length, 2);
+		}),
+	);
+
+	it.effect("reads the current track, artist, art, and volume", () =>
+		Effect.gen(function* () {
+			const { layer } = yield* spotifyLayers({
+				token: Option.some(yield* freshToken),
+				spotify: () =>
+					json({
+						is_playing: true,
+						device: { id: "d1", name: "Desk", volume_percent: 40 },
+						context: { uri: "spotify:playlist:x" },
+						item: {
+							name: "Snowman",
+							artists: [{ name: "WYS" }, { name: "Saib" }],
+							album: { images: [{ url: "https://i/art" }] },
+						},
+					}),
+			});
+			const state = yield* SpotifyClient.use((c) => c.playbackState).pipe(
+				Effect.provide(layer),
+			);
+			const playback = Option.getOrThrow(state);
+			assert.strictEqual(playback.volumePercent, 40);
+			assert.deepStrictEqual(
+				[
+					playback.track?.title,
+					playback.track?.artist,
+					playback.track?.imageUrl,
+				],
+				["Snowman", "WYS, Saib", "https://i/art"],
+			);
+		}),
+	);
+
+	it.effect("sends volume, skip, and transfer commands", () =>
+		Effect.gen(function* () {
+			const { layer, requests } = yield* spotifyLayers({
+				token: Option.some(yield* freshToken),
+				spotify: () => new Response(null, { status: 204 }),
+			});
+			yield* Effect.gen(function* () {
+				const client = yield* SpotifyClient;
+				yield* client.setVolume(120);
+				yield* client.next;
+				yield* client.previous;
+				yield* client.transfer("phone", true);
+			}).pipe(Effect.provide(layer));
+			assert.deepStrictEqual(
+				requests.map((r) => `${r.method} ${r.url.pathname}${r.url.search}`),
+				[
+					"PUT /v1/me/player/volume?volume_percent=100",
+					"POST /v1/me/player/next",
+					"POST /v1/me/player/previous",
+					"PUT /v1/me/player",
+				],
+			);
+			assert.deepStrictEqual(JSON.parse(requests[3]?.body ?? ""), {
+				device_ids: ["phone"],
+				play: true,
+			});
 		}),
 	);
 });

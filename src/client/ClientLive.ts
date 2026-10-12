@@ -10,6 +10,7 @@ import { loggingLayer } from "@/shared/Logging";
 import { ApiClient } from "./ApiClient";
 import { AudioNotification } from "./AudioNotification";
 import { Playback } from "./Playback";
+import { MusicDirector } from "./MusicDirector";
 import { Notifier } from "./Notifier";
 import { Pomodoro } from "./Pomodoro";
 import { ScreenWake } from "./ScreenWake";
@@ -50,7 +51,6 @@ const PomodoroLive = Pomodoro.layer.pipe(
 			ScreenWake.layer,
 		),
 	),
-	Layer.provideMerge(SettingsStore.layer),
 );
 
 /**
@@ -60,7 +60,9 @@ const PomodoroLive = Pomodoro.layer.pipe(
  * @category Layers
  */
 export const ClientLive = StartupLive.pipe(
+	Layer.provideMerge(MusicDirector.layer),
 	Layer.provideMerge(Layer.mergeAll(SpotifyLive, PomodoroLive)),
+	Layer.provideMerge(SettingsStore.layer),
 	Layer.provideMerge(ApiClient.layer),
 	Layer.provide(BrowserKeyValueStore.layerLocalStorage),
 	Layer.provide(FetchHttpClient.layer),

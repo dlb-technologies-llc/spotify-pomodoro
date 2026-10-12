@@ -8,12 +8,20 @@ import { Option, Schema } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { useState } from "react";
 import {
+	playlistsAtom,
 	previewChimeAtom,
 	saveSettingsAtom,
 	settingsAtom,
+	spotifyConnectedAtom,
 } from "@/client/atoms";
 import { cn } from "@/lib/utils";
-import { ChimeSound, Settings } from "@/shared/domain/Settings";
+import {
+	BreakMusic,
+	ChimeSound,
+	MusicSettings,
+	Settings,
+} from "@/shared/domain/Settings";
+import type { Playlist } from "@/shared/domain/Spotify";
 import { NamedPreset, TIMER_PRESETS } from "@/shared/domain/Timer";
 import {
 	Dialog,
@@ -25,6 +33,14 @@ import {
 } from "./ui/dialog";
 
 const decodeSettings = Schema.decodeUnknownOption(Settings);
+const encodeMusic = Schema.encodeSync(MusicSettings);
+
+const BREAK_MUSIC_LABELS = {
+	keep: "Keep playing",
+	playlist: "Switch to break playlist",
+	pause: "Pause",
+	lower: "Lower the volume",
+} satisfies Record<BreakMusic, string>;
 
 const CHIME_LABELS = {
 	bell: "Bell",
@@ -49,6 +65,7 @@ const draftOf = (settings: Settings) => ({
 	autoStartFocus: settings.autoStartFocus,
 	chime: settings.chime,
 	volume: settings.chimeVolume,
+	music: settings.music,
 });
 
 type Draft = ReturnType<typeof draftOf>;
@@ -78,6 +95,7 @@ const settingsFrom = (draft: Draft) => {
 		dailyGoal: Number(draft.goal),
 		chime: draft.chime,
 		chimeVolume: draft.volume,
+		music: encodeMusic(draft.music),
 	});
 };
 
@@ -104,6 +122,51 @@ export function SettingsDialog({
 	const [open, setOpen] = useState(false);
 	const [draft, setDraft] = useState(() => draftOf(settings));
 	const parsed = settingsFrom(draft);
+	const connected = AsyncResult.getOrElse(
+		useAtomValue(spotifyConnectedAtom),
+		() => false,
+	);
+	const playlists = AsyncResult.getOrElse(
+		useAtomValue(playlistsAtom),
+		() => [],
+	);
+	const setMusic = (patch: Partial<MusicSettings>) =>
+		setDraft((current) => ({
+			...current,
+			music: new MusicSettings({ ...current.music, ...patch }),
+		}));
+	const playlistSelect = (
+		label: string,
+		value: Option.Option<Playlist>,
+		onChange: (playlist: Option.Option<Playlist>) => void,
+	) => (
+		<label className="flex items-center justify-between gap-4 text-sm">
+			<span className="text-muted-foreground">{label}</span>
+			<select
+				aria-label={label}
+				value={Option.match(value, { onNone: () => "", onSome: (p) => p.id })}
+				onChange={(event) =>
+					onChange(
+						Option.fromUndefinedOr(
+							playlists.find((p) => p.id === event.target.value),
+						),
+					)
+				}
+				className={cn(field, "w-44 text-left font-sans truncate")}
+			>
+				<option value="">None</option>
+				{Option.isSome(value) &&
+					!playlists.some((p) => p.id === value.value.id) && (
+						<option value={value.value.id}>{value.value.name}</option>
+					)}
+				{playlists.map((playlist) => (
+					<option key={playlist.id} value={playlist.id}>
+						{playlist.name}
+					</option>
+				))}
+			</select>
+		</label>
+	);
 	const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
 		setDraft((current) => ({ ...current, [key]: value }));
 
@@ -208,6 +271,78 @@ export function SettingsDialog({
 							Goal
 						</legend>
 						{number("goal", "Daily goal", "pomodoros", { min: 0, max: 48 })}
+					</fieldset>
+
+					<fieldset className="space-y-3 border-0 p-0 m-0">
+						<legend className="mb-2 text-xs uppercase tracking-widest text-muted-foreground/70">
+							Music
+						</legend>
+						{!connected && (
+							<p className="text-xs text-muted-foreground/60">
+								Connect Spotify to choose playlists.
+							</p>
+						)}
+						{playlistSelect(
+							"Focus playlist",
+							draft.music.focusPlaylist,
+							(focusPlaylist) => setMusic({ focusPlaylist }),
+						)}
+						<label className="flex items-center justify-between gap-4 text-sm">
+							<span className="text-muted-foreground">On breaks</span>
+							<select
+								aria-label="On breaks"
+								value={draft.music.onBreak}
+								onChange={(event) => {
+									const onBreak = BreakMusic.literals.find(
+										(b) => b === event.target.value,
+									);
+									if (onBreak) setMusic({ onBreak });
+								}}
+								className={cn(field, "w-44 text-left font-sans")}
+							>
+								{BreakMusic.literals.map((choice) => (
+									<option key={choice} value={choice}>
+										{BREAK_MUSIC_LABELS[choice]}
+									</option>
+								))}
+							</select>
+						</label>
+						{draft.music.onBreak === "playlist" &&
+							playlistSelect(
+								"Break playlist",
+								draft.music.breakPlaylist,
+								(breakPlaylist) => setMusic({ breakPlaylist }),
+							)}
+						{draft.music.onBreak === "lower" && (
+							<label className="flex items-center justify-between gap-4 text-sm">
+								<span className="text-muted-foreground">Break volume</span>
+								<input
+									type="range"
+									aria-label="Break volume"
+									min={0}
+									max={1}
+									step={0.05}
+									value={draft.music.breakVolume}
+									onChange={(event) =>
+										setMusic({ breakVolume: Number(event.target.value) })
+									}
+									className="w-40 accent-[#1DB954]"
+								/>
+							</label>
+						)}
+						<label className="flex items-center justify-between gap-4 text-sm">
+							<span className="text-muted-foreground">
+								Pause when a pomodoro ends
+							</span>
+							<input
+								type="checkbox"
+								checked={draft.music.pauseOnEnd}
+								onChange={(event) =>
+									setMusic({ pauseOnEnd: event.target.checked })
+								}
+								className="h-4 w-4 accent-[#1DB954]"
+							/>
+						</label>
 					</fieldset>
 
 					<fieldset className="space-y-3 border-0 p-0 m-0">

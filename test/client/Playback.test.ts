@@ -5,7 +5,9 @@
  */
 import { assert, describe, it } from "@effect/vitest";
 import { Effect, Layer, Option, Ref, Schedule, SubscriptionRef } from "effect";
+import { KeyValueStore } from "effect/persistence";
 import { Playback, SDK_CHANNEL } from "@/client/Playback";
+import { SettingsStore } from "@/client/SettingsStore";
 import { SpotifyClient } from "@/client/SpotifyClient";
 import { WebPlaybackSdk } from "@/client/WebPlaybackSdk";
 import {
@@ -43,9 +45,14 @@ const fakeSpotify = (options: {
 				Effect.andThen(options.play(request)),
 			),
 		pause: record({ name: "pause" }),
+		resume: record({ name: "resume" }),
 		setShuffle: () => record({ name: "shuffle" }),
 		setRepeat: () => record({ name: "repeat" }),
-		transfer: () => record({ name: "transfer" }),
+		setVolume: (percent: number) =>
+			record({ name: `volume:${Math.round(percent)}` }),
+		next: record({ name: "next" }),
+		previous: record({ name: "previous" }),
+		transfer: (deviceId: string) => record({ name: `transfer:${deviceId}` }),
 	});
 };
 
@@ -81,6 +88,8 @@ const run = <A, E>(
 						}),
 					),
 					Layer.provide(fakeSdk(options.sdk ?? Effect.succeed("sdk-device"))),
+					Layer.provideMerge(SettingsStore.layer),
+					Layer.provide(KeyValueStore.layerMemory),
 				),
 			),
 		);
@@ -169,6 +178,8 @@ describe("Playback", () => {
 				deviceId: "gone-phone",
 				deviceName: "Phone",
 				contextUri: null,
+				volumePercent: null,
+				track: null,
 			});
 			const { calls } = yield* run(
 				Effect.gen(function* () {
@@ -264,6 +275,8 @@ describe("Playback", () => {
 				deviceId: "browser-device",
 				deviceName: BROWSER_DEVICE_NAME,
 				contextUri: null,
+				volumePercent: null,
+				track: null,
 			});
 			const { result } = yield* run(
 				Effect.gen(function* () {

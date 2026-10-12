@@ -59,7 +59,12 @@ test.describe("Spotify", () => {
 
 	test("lists playlists", async ({ connected: { page } }) => {
 		await page.getByRole("button", { name: "playlist" }).click();
-		for (const name of ["Lofi Beats", "Focus Flow", "Jazz Vibes"]) {
+		for (const name of [
+			"Lofi Beats",
+			"Focus Flow",
+			"Jazz Vibes",
+			"Rainy Study",
+		]) {
 			await expect(page.getByText(name)).toBeVisible();
 		}
 	});
@@ -70,9 +75,15 @@ test.describe("Spotify", () => {
 		await page.getByRole("button", { name: "playlist" }).click();
 		await page.getByText("Lofi Beats").click();
 		await expect
-			.poll(() => spotify.calls)
-			.toEqual({ play: 1, pause: 0, shuffle: 1, repeat: 1 });
-		await expect(page.getByText("External device")).toBeVisible();
+			.poll(() => [
+				spotify.calls.play,
+				spotify.calls.shuffle,
+				spotify.calls.repeat,
+			])
+			.toEqual([1, 1, 1]);
+		await expect(
+			page.getByRole("button", { name: "choose device" }),
+		).toContainText("Desk Speaker");
 	});
 
 	test("the vinyl pauses and resumes", async ({
