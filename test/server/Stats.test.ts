@@ -124,7 +124,11 @@ describe("computeStats", () => {
 
 	it.effect("splits time into periods and overtime", () =>
 		Effect.gen(function* () {
-			const [p1, p2, p3] = yield* distinct(Pomodoro, 3, (p) => p.id);
+			const [p1, p2, p3] = yield* distinct(
+				Pomodoro,
+				3,
+				(pomodoro) => pomodoro.id,
+			);
 			const [f1, f2, f3] = yield* samples(FocusSession, 3);
 			const [b1] = yield* samples(BreakSession, 1);
 			if (!p1 || !p2 || !p3 || !f1 || !f2 || !f3 || !b1)
@@ -163,7 +167,7 @@ describe("computeStats", () => {
 
 	it.effect("uses the viewer's time zone for days", () =>
 		Effect.gen(function* () {
-			const [p] = yield* distinct(Pomodoro, 1, (p) => p.id);
+			const [p] = yield* distinct(Pomodoro, 1, (pomodoro) => pomodoro.id);
 			const [f] = yield* samples(FocusSession, 1);
 			if (!p || !f) return assert.fail("samples");
 			const lateEvening = completedPomodoro(p, "2025-06-18T03:00:00Z");

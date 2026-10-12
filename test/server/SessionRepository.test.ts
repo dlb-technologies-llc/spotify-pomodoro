@@ -3,7 +3,7 @@
  *
  * @module
  */
-import { assert, describe, it, layer } from "@effect/vitest";
+import { assert, describe, it as test, layer } from "@effect/vitest";
 import { DateTime, Effect, Layer, Option } from "effect";
 import { TestClock } from "effect/testing";
 import { DatabaseTest } from "@/server/Database";
@@ -105,7 +105,7 @@ layer(TestLayer)("SessionRepository", (it) => {
 });
 
 describe("migrations", () => {
-	it.effect("adopt a database created by the old Drizzle migrations", () =>
+	test.effect("adopt a database created by the old Drizzle migrations", () =>
 		Effect.gen(function* () {
 			const { sqlClient, migrations } = yield* Effect.promise(
 				() => import("@/server/Database"),

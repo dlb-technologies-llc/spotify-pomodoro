@@ -100,13 +100,13 @@ When enabled, all routes require login. The login page appears at `/login`.
 
 ## Keyboard Controls
 
-| Key               | Action                              |
-| ----------------- | ----------------------------------- |
-| `Space` / `Enter` | Start timer                         |
-| `E`               | End (stop) current session          |
-| `B`               | Skip to break (during focus)        |
-| `F`               | Skip to focus (during break)        |
-| `R`               | Reset timer (when stopped)          |
+| Key               | Action                       |
+| ----------------- | ---------------------------- |
+| `Space` / `Enter` | Start timer                  |
+| `E`               | End (stop) current session   |
+| `B`               | Skip to break (during focus) |
+| `F`               | Skip to focus (during break) |
+| `R`               | Reset timer (when stopped)   |
 
 The stats dialog uses your browser's time zone for days, weeks, and streaks.
 
@@ -127,18 +127,18 @@ Session data is stored in SQLite (`DATABASE_URL`, default `file:./data/pomodoro.
 
 ## Configuration
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `PUBLIC_SPOTIFY_CLIENT_ID` | — | Spotify app client ID |
-| `PUBLIC_SPOTIFY_REDIRECT_URI` | `http://127.0.0.1:2500/callback` | OAuth redirect URI registered with Spotify |
-| `AUTH_ENABLED` | `false` | Require login |
-| `AUTH_PASSWORD` / `AUTH_SECRET` | — | Required when auth is enabled |
-| `AUTH_COOKIE_MAX_AGE` | `604800` | Session length in seconds |
-| `SECURE_COOKIES` | `true` in production | Mark cookies `Secure` |
-| `DATABASE_URL` | `file:./data/pomodoro.db` | libSQL URL |
-| `OTEL_COLLECTOR_URL` | unset | OTLP/HTTP collector; tracing is off when unset |
-| `LOG_LEVEL` / `LOG_FORMAT` | `info` / pretty in dev, JSON in prod | Server logging |
-| `PUBLIC_LOG_LEVEL` / `PUBLIC_LOG_FORMAT` | same | Browser logging (build time) |
+| Variable                                 | Default                              | Purpose                                        |
+| ---------------------------------------- | ------------------------------------ | ---------------------------------------------- |
+| `PUBLIC_SPOTIFY_CLIENT_ID`               | —                                    | Spotify app client ID                          |
+| `PUBLIC_SPOTIFY_REDIRECT_URI`            | `http://127.0.0.1:2500/callback`     | OAuth redirect URI registered with Spotify     |
+| `AUTH_ENABLED`                           | `false`                              | Require login                                  |
+| `AUTH_PASSWORD` / `AUTH_SECRET`          | —                                    | Required when auth is enabled                  |
+| `AUTH_COOKIE_MAX_AGE`                    | `604800`                             | Session length in seconds                      |
+| `SECURE_COOKIES`                         | `true` in production                 | Mark cookies `Secure`                          |
+| `DATABASE_URL`                           | `file:./data/pomodoro.db`            | libSQL URL                                     |
+| `OTEL_COLLECTOR_URL`                     | unset                                | OTLP/HTTP collector; tracing is off when unset |
+| `LOG_LEVEL` / `LOG_FORMAT`               | `info` / pretty in dev, JSON in prod | Server logging                                 |
+| `PUBLIC_LOG_LEVEL` / `PUBLIC_LOG_FORMAT` | same                                 | Browser logging (build time)                   |
 
 Spotify settings are read at runtime by the server, so one image works for any deployment.
 

@@ -120,7 +120,7 @@ export class Playback extends Context.Service<Playback>()(
 
 			const channel = yield* Effect.acquireRelease(
 				Effect.sync(() => new BroadcastChannel(SDK_CHANNEL)),
-				(channel) => Effect.sync(() => channel.close()),
+				(open) => Effect.sync(() => open.close()),
 			);
 
 			const runFork = yield* FiberSet.makeRuntime();

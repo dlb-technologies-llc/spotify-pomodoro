@@ -487,8 +487,7 @@ function PlaybackNotices() {
 			)}
 
 			{player.tabTookOver && (
-				<div
-					role="status"
+				<output
 					className={cn(
 						"fixed bottom-4 left-1/2 -translate-x-1/2 z-50",
 						"px-4 py-3 rounded-xl",
@@ -508,7 +507,7 @@ function PlaybackNotices() {
 					>
 						<X className="w-4 h-4" />
 					</button>
-				</div>
+				</output>
 			)}
 		</>
 	);

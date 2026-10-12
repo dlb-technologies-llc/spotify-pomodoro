@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Rebuilt on Effect 4.0 (stable): the API is an Effect `HttpApi` shared with a typed browser client, persistence uses Effect SQL on libSQL, and UI state lives in Effect atoms
-- Upgraded Astro 7, React 19.3, Vitest 5, TypeScript 6, Biome 2.5, Tailwind 4.3, Playwright 1.64
+- Upgraded Astro 7, React 19.3, Vitest 5, TypeScript 6, Tailwind 4.3, Playwright 1.64
 - Production image runs on Node 24 (built with Bun); migrations run on startup, no entrypoint script
 - Spotify token refresh happens on the server, so images no longer need the client ID at build time
 - The OAuth callback hands the token over in the URL fragment instead of the query string
@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The timer measures elapsed time from the clock, so throttled background tabs stay accurate
 - Browser tracing is only forwarded when `OTEL_COLLECTOR_URL` is set
 - `staging` branch with `:staging` images; releases are PRs from `staging` into `main`
+- Linting and formatting moved from Biome to oxlint (type-aware) and oxfmt
 
 ### Fixed
 
@@ -102,6 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Configuration
 
 New optional environment variables:
+
 - `AUTH_ENABLED` - Enable authentication (default: false)
 - `AUTH_PASSWORD` - Login password (username is always "admin")
 - `AUTH_SECRET` - Secret for signing cookies

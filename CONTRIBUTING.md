@@ -23,12 +23,12 @@ feature/*  ──PR──▶  staging  ──release PR──▶  main
 
 ## Checks
 
-| Command | What it runs |
-| --- | --- |
-| `bun run check` | Biome, `astro check`, unit tests |
-| `bun run test` | Unit and integration tests (Vitest) |
-| `bun run test:e2e` | Playwright against a production build (`--project=chromium` etc.) |
-| `bun run test:live` | Read-only checks against the real Spotify API |
+| Command             | What it runs                                                      |
+| ------------------- | ----------------------------------------------------------------- |
+| `bun run check`     | oxlint (type-aware), oxfmt, `astro check`, unit tests             |
+| `bun run test`      | Unit and integration tests (Vitest)                               |
+| `bun run test:e2e`  | Playwright against a production build (`--project=chromium` etc.) |
+| `bun run test:live` | Read-only checks against the real Spotify API                     |
 
 CI runs all of these, plus a Docker build and smoke test, on every PR and push to `staging` and `main`.
 
@@ -50,7 +50,7 @@ This opens Spotify's consent page, catches the redirect on `PUBLIC_SPOTIFY_REDIR
 - No `as` casts or `!` assertions.
 - Tests use `@effect/vitest`. Test data comes from schemas (`test/support/arbitrary.ts`), not hand-written fixtures.
 - JSDoc on exports (`@since`, `@category`); no other comments.
-- Biome formats and lints (`bun run lint:fix`).
+- oxlint lints (type-aware, `.oxlintrc.json`) and oxfmt formats; `bun run lint:fix` applies both.
 
 ## Layout
 

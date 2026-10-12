@@ -226,21 +226,21 @@ function ContributionGraph({
 }: {
 	readonly dailyActivity: ReadonlyArray<DailyActivity>;
 }) {
-	const currentYear = new Date().getFullYear();
+	const [today] = useState(() => new Date());
+	const currentYear = today.getFullYear();
 	const availableYears = useMemo(() => {
 		const years = new Set<number>();
 		years.add(currentYear);
 		for (const d of dailyActivity) {
 			years.add(Number(d.date.slice(0, 4)));
 		}
-		return Array.from(years).sort((a, b) => b - a);
+		return Array.from(years).toSorted((a, b) => b - a);
 	}, [dailyActivity, currentYear]);
 
 	const [selectedYear, setSelectedYear] = useState(currentYear);
 
 	const { weeks, maxCount, monthLabels } = useMemo(() => {
 		const activityMap = new Map(dailyActivity.map((d) => [d.date, d.count]));
-		const today = new Date();
 
 		const yearStart = new Date(selectedYear, 0, 1);
 		const firstSunday = new Date(yearStart);
@@ -261,7 +261,13 @@ function ContributionGraph({
 		let weekIdx = 0;
 		const currentDate = new Date(firstSunday);
 
-		while (currentDate <= lastSaturday) {
+		const weekCount =
+			Math.round(
+				(lastSaturday.getTime() - firstSunday.getTime()) /
+					(7 * 24 * 60 * 60 * 1000),
+			) + 1;
+
+		for (let w = 0; w < weekCount; w++) {
 			const week: { date: string | null; count: number; dayOfWeek: number }[] =
 				[];
 
@@ -300,7 +306,7 @@ function ContributionGraph({
 		}
 
 		return { weeks: result, maxCount: maxVal, monthLabels: months };
-	}, [dailyActivity, selectedYear]);
+	}, [dailyActivity, selectedYear, today]);
 
 	const getIntensity = (count: number): number => {
 		if (count === 0) return 0;

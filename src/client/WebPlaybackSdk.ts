@@ -23,7 +23,7 @@ const loadScript = Effect.callback<void, SdkUnavailable>((resume) => {
 	const script = document.createElement("script");
 	script.src = SDK_SCRIPT_URL;
 	script.async = true;
-	script.onerror = () =>
+	script.addEventListener("error", () =>
 		resume(
 			Effect.fail(
 				new SdkUnavailable({
@@ -31,7 +31,8 @@ const loadScript = Effect.callback<void, SdkUnavailable>((resume) => {
 					message: "Failed to load the Spotify SDK script",
 				}),
 			),
-		);
+		),
+	);
 	document.body.appendChild(script);
 });
 
@@ -58,7 +59,7 @@ const connect = (player: SpotifyPlayer) =>
 		player.addListener("account_error", ({ message }) =>
 			settle(Effect.fail(new PremiumRequired({ message }))),
 		);
-		player.connect();
+		void player.connect();
 	});
 
 /**
@@ -78,7 +79,7 @@ export class WebPlaybackSdk extends Context.Service<WebPlaybackSdk>()(
 	{
 		make: Effect.gen(function* () {
 			const auth = yield* SpotifyAuth;
-			const context = yield* Effect.context<never>();
+			const context = yield* Effect.context();
 			const lock = yield* Semaphore.make(1);
 			const device = yield* Ref.make(
 				Option.none<{
@@ -100,7 +101,7 @@ export class WebPlaybackSdk extends Context.Service<WebPlaybackSdk>()(
 					name: BROWSER_DEVICE_NAME,
 					volume: 0.5,
 					getOAuthToken: (callback) => {
-						Effect.runPromiseWith(context)(
+						void Effect.runPromiseWith(context)(
 							auth.accessToken.pipe(Effect.orElseSucceed(() => "")),
 						).then(callback);
 					},

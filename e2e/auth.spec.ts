@@ -1,9 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
-const signIn = async (
-	page: import("@playwright/test").Page,
-	password: string,
-) => {
+const signIn = async (page: Page, password: string) => {
 	await page.getByLabel("password").fill(password);
 	await page.getByRole("button", { name: "sign in" }).click();
 };

@@ -1,0 +1,85 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": [
+		"typescript",
+		"unicorn",
+		"oxc",
+		"import",
+		"react",
+		"jsx-a11y",
+		"vitest"
+	],
+	"categories": {
+		"correctness": "error",
+		"suspicious": "error",
+		"perf": "warn"
+	},
+	"env": {
+		"browser": true,
+		"node": true,
+		"es2024": true
+	},
+	"rules": {
+		"typescript/no-non-null-assertion": "error",
+		"typescript/consistent-type-assertions": [
+			"error",
+			{
+				"assertionStyle": "never"
+			}
+		],
+		"typescript/no-explicit-any": "error",
+		"typescript/consistent-type-imports": "error",
+		"react/rules-of-hooks": "error",
+		"react/exhaustive-deps": "error",
+		"react/react-in-jsx-scope": "off",
+		"import/no-cycle": "error",
+		"no-console": [
+			"error",
+			{
+				"allow": ["error"]
+			}
+		],
+		"no-underscore-dangle": "off",
+		"typescript/consistent-return": "off",
+		"typescript/no-misused-spread": "off",
+		"unicorn/consistent-function-scoping": "off",
+		"unicorn/require-post-message-target-origin": "off",
+		"react/no-array-index-key": "off",
+		"import/no-unassigned-import": [
+			"error",
+			{
+				"allow": ["**/*.css"]
+			}
+		],
+		"no-unused-vars": [
+			"error",
+			{
+				"argsIgnorePattern": "^_",
+				"varsIgnorePattern": "^_"
+			}
+		]
+	},
+	"ignorePatterns": [
+		"dist/**",
+		".astro/**",
+		"playwright-report/**",
+		"test-results/**",
+		"blob-report/**",
+		"src/styles/global.css"
+	],
+	"overrides": [
+		{
+			"files": ["e2e/**"],
+			"rules": {
+				"react/rules-of-hooks": "off",
+				"no-await-in-loop": "off"
+			}
+		},
+		{
+			"files": ["**/*.ts"],
+			"rules": {
+				"react/rules-of-hooks": "off"
+			}
+		}
+	]
+}

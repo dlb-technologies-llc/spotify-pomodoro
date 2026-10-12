@@ -69,7 +69,7 @@ export const longestRun = (days: ReadonlySet<number>): number => {
 	let longest = 0;
 	let run = 0;
 	let previous = Number.NaN;
-	for (const index of [...days].sort((x, y) => x - y)) {
+	for (const index of [...days].toSorted((x, y) => x - y)) {
 		run = index - previous === 1 ? run + 1 : 1;
 		longest = Math.max(longest, run);
 		previous = index;
@@ -174,7 +174,7 @@ export const computeStats = (input: {
 			breaks,
 		),
 		dailyActivity: [...activity.entries()]
-			.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+			.toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
 			.map(([date, day]) => new DailyActivity({ date, ...day })),
 	});
 };
