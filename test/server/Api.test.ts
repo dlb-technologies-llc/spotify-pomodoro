@@ -5,6 +5,7 @@
  */
 import { assert, describe, it } from "@effect/vitest";
 import { Effect, Option } from "effect";
+import { TestClock } from "effect/testing";
 import { ApiClient } from "@/client/ApiClient";
 import { Pomodoro, Seconds } from "@/shared/domain/Session";
 import { sample } from "../support/arbitrary";
@@ -167,6 +168,77 @@ describe("sessions API", () => {
 				{ method: "POST" },
 			);
 			assert.strictEqual(tooLong.status, 400);
+		}),
+	);
+
+	it.effect("pages history, deletes, exports, and re-imports", () =>
+		Effect.gen(function* () {
+			const handler = yield* startServer();
+			const { sessions, data } = yield* Effect.provide(
+				ApiClient,
+				apiClientFor(handler),
+			);
+			const ids = [];
+			for (const label of ["one", "two", "three"]) {
+				const pomodoro = yield* sessions.createPomodoro({ query: { label } });
+				const focus = yield* sessions.startFocus({
+					payload: { pomodoroId: pomodoro.id, configuredSeconds: 60 },
+				});
+				yield* sessions.completeFocus({
+					params: { id: focus.id },
+					payload: { elapsedSeconds: 90 },
+				});
+				yield* sessions.completePomodoro({ params: { id: pomodoro.id } });
+				ids.push(pomodoro.id);
+				yield* TestClock.adjust("1 second");
+			}
+
+			const first = yield* data.history({ query: { limit: 2 } });
+			assert.deepStrictEqual(
+				first.items.map((e) => Option.getOrNull(e.label)),
+				["three", "two"],
+			);
+			assert.strictEqual(first.items[0]?.focusSeconds, 90);
+			assert.strictEqual(first.items[0]?.overtimeSeconds, 30);
+			const second = yield* data.history({
+				query: { limit: 2, before: Option.getOrUndefined(first.nextBefore) },
+			});
+			assert.deepStrictEqual(
+				second.items.map((e) => Option.getOrNull(e.label)),
+				["one"],
+			);
+			assert.isTrue(Option.isNone(second.nextBefore));
+
+			const exported = yield* data.exportJson();
+			assert.strictEqual(exported.pomodoros.length, 3);
+			const csv = yield* send(handler, "/api/export.csv");
+			assert.match(
+				csv.headers.get("content-disposition") ?? "",
+				/attachment; filename="spotify-pomodoro-/,
+			);
+			const text = yield* Effect.promise(() => csv.text());
+			assert.strictEqual(text.trim().split("\n").length, 4);
+			assert.match(
+				text,
+				/^pomodoro_id,label,created_at,completed_at,focus_seconds/,
+			);
+
+			yield* sessions.deletePomodoro({ params: { id: ids[0] ?? "" } });
+			const afterDelete = yield* sessions.stats({ query: {} });
+			assert.strictEqual(afterDelete.totalPomodoros, 2);
+			const missing = yield* Effect.flip(
+				sessions.deletePomodoro({ params: { id: ids[0] ?? "" } }),
+			);
+			assert.strictEqual(missing._tag, "PomodoroNotFound");
+
+			const imported = yield* data.import({ payload: exported });
+			assert.deepStrictEqual(
+				[imported.pomodoros, imported.focusSessions, imported.skipped],
+				[1, 1, 4],
+			);
+			const restored = yield* sessions.stats({ query: {} });
+			assert.strictEqual(restored.totalPomodoros, 3);
+			assert.strictEqual(restored.totalFocusSeconds, 270);
 		}),
 	);
 });

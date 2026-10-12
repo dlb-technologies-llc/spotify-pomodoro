@@ -194,7 +194,9 @@ describe("computeStats", () => {
 				chicago.dailyActivity.map((d) => d.date),
 				["2025-06-17"],
 			);
-			assert.strictEqual(chicago.currentStreak, 0);
+			assert.strictEqual(chicago.currentStreak, 1);
+			assert.isTrue(chicago.streakAtRisk);
+			assert.isFalse(utc.streakAtRisk);
 		}),
 	);
 
@@ -267,5 +269,42 @@ describe("calendar days", () => {
 		[Seconds],
 		([day]) =>
 			longestRun(new Set([day])) === 1 && currentRun(new Set([day]), day) === 1,
+	);
+});
+
+describe("focus patterns", () => {
+	it.effect(
+		"buckets focus by local weekday and hour and averages overtime",
+		() =>
+			Effect.gen(function* () {
+				const [p] = yield* distinct(Pomodoro, 1, (pomodoro) => pomodoro.id);
+				const [f1, f2] = yield* samples(FocusSession, 2);
+				if (!p || !f1 || !f2) return assert.fail("samples");
+				const done = completedPomodoro(p, "2025-06-18T15:00:00Z");
+				const at = (iso: string) => DateTime.makeUnsafe(iso);
+				const stats = computeStats({
+					pomodoros: [done],
+					focusSessions: [
+						new FocusSession({
+							...focusFor(f1, done, 1500, 1500),
+							startedAt: at("2025-06-18T14:10:00Z"),
+						}),
+						new FocusSession({
+							...focusFor(f2, done, 1800, 1500),
+							startedAt: at("2025-06-18T14:40:00Z"),
+						}),
+					],
+					breakSessions: [],
+					now: zoned("2025-06-18T20:00:00Z", "America/New_York"),
+				});
+				assert.strictEqual(stats.focusHeatmap.length, 7);
+				assert.strictEqual(stats.focusHeatmap[3]?.[10], 3300);
+				assert.strictEqual(
+					stats.focusHeatmap.flat().reduce((sum, value) => sum + value, 0),
+					3300,
+				);
+				assert.strictEqual(stats.averageFocusOvertimeSeconds, 150);
+				assert.strictEqual(stats.averageBreakOvertimeSeconds, 0);
+			}),
 	);
 });

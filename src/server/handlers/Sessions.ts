@@ -19,6 +19,7 @@ export const SessionsHandlers = HttpApiBuilder.group(
 		const repo = yield* SessionRepository;
 		return handlers
 			.handle("createPomodoro", ({ query }) => repo.createPomodoro(query))
+			.handle("deletePomodoro", ({ params }) => repo.deletePomodoro(params.id))
 			.handle("labelPomodoro", ({ params, payload }) =>
 				repo.labelPomodoro(params.id, payload),
 			)

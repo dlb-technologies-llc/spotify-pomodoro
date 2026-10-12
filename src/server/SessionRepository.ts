@@ -30,6 +30,11 @@ import {
 	Seconds,
 	type StartSession,
 } from "@/shared/domain/Session";
+import {
+	HistoryEntry,
+	HistoryPage,
+	ImportResult,
+} from "@/shared/domain/History";
 import { computeStats } from "./Stats";
 
 const Completion = <Id extends Schema.Top>(id: Id) =>
@@ -123,6 +128,38 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 				Request: Schema.Void,
 				Result: BreakSession,
 				execute: () => sql`SELECT * FROM break_sessions`,
+			});
+
+			const pomodorosBefore = SqlSchema.findAll({
+				Request: Schema.Struct({ before: Schema.Number, limit: Schema.Int }),
+				Result: Pomodoro,
+				execute: ({ before, limit }) =>
+					sql`SELECT * FROM pomodoros WHERE created_at < ${before} ORDER BY created_at DESC LIMIT ${limit}`,
+			});
+			const focusFor = SqlSchema.findAll({
+				Request: Schema.Array(PomodoroId),
+				Result: FocusSession,
+				execute: (ids) =>
+					sql`SELECT * FROM focus_sessions WHERE ${sql.in("pomodoro_id", ids)}`,
+			});
+			const breaksFor = SqlSchema.findAll({
+				Request: Schema.Array(PomodoroId),
+				Result: BreakSession,
+				execute: (ids) =>
+					sql`SELECT * FROM break_sessions WHERE ${sql.in("pomodoro_id", ids)}`,
+			});
+
+			const restorePomodoro = SqlSchema.void({
+				Request: Pomodoro,
+				execute: (row) => sql`INSERT INTO pomodoros ${sql.insert(row)}`,
+			});
+			const restoreFocus = SqlSchema.void({
+				Request: FocusSession,
+				execute: (row) => sql`INSERT INTO focus_sessions ${sql.insert(row)}`,
+			});
+			const restoreBreak = SqlSchema.void({
+				Request: BreakSession,
+				execute: (row) => sql`INSERT INTO break_sessions ${sql.insert(row)}`,
 			});
 
 			const requirePomodoro = (id: PomodoroId) =>
@@ -259,7 +296,186 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 				return computeStats({ pomodoros, focusSessions, breakSessions, now });
 			}, Effect.orDie);
 
+			const history = Effect.fn("SessionRepository.history")(
+				function* (options: {
+					readonly before: number;
+					readonly limit: number;
+				}) {
+					const rows = yield* pomodorosBefore({
+						before: options.before,
+						limit: options.limit + 1,
+					});
+					const page = rows.slice(0, options.limit);
+					const ids = page.map((p) => p.id);
+					const [focus, breaks] =
+						ids.length === 0
+							? [[], []]
+							: yield* Effect.all([focusFor(ids), breaksFor(ids)], {
+									concurrency: "unbounded",
+								});
+					const items = page.map((pomodoro) => {
+						const own = <S extends FocusSession | BreakSession>(
+							sessions: ReadonlyArray<S>,
+						) =>
+							sessions.filter(
+								(s) => s.pomodoroId === pomodoro.id && s.completed,
+							);
+						const f = own(focus);
+						const b = own(breaks);
+						const total = (list: ReadonlyArray<FocusSession | BreakSession>) =>
+							list.reduce((sum, s) => sum + s.elapsedSeconds, 0);
+						const extra = (list: ReadonlyArray<FocusSession | BreakSession>) =>
+							list.reduce(
+								(sum, s) =>
+									sum + Math.max(0, s.elapsedSeconds - s.configuredSeconds),
+								0,
+							);
+						return new HistoryEntry({
+							id: pomodoro.id,
+							label: pomodoro.label,
+							createdAt: pomodoro.createdAt,
+							completedAt: pomodoro.completedAt,
+							focusSeconds: total(f),
+							breakSeconds: total(b),
+							overtimeSeconds: extra(f) + extra(b),
+							focusSessions: f.length,
+							breakSessions: b.length,
+						});
+					});
+					const last = page.at(-1);
+					return new HistoryPage({
+						items,
+						nextBefore:
+							rows.length > options.limit && last
+								? Option.some(DateTime.toEpochMillis(last.createdAt))
+								: Option.none(),
+					});
+				},
+				Effect.orDie,
+			);
+
+			const deletePomodoro = Effect.fn("SessionRepository.deletePomodoro")(
+				function* (id: PomodoroId) {
+					yield* requirePomodoro(id);
+					yield* sql
+						.withTransaction(
+							Effect.all([
+								sql`DELETE FROM focus_sessions WHERE pomodoro_id = ${id}`,
+								sql`DELETE FROM break_sessions WHERE pomodoro_id = ${id}`,
+								sql`DELETE FROM pomodoros WHERE id = ${id}`,
+							]),
+						)
+						.pipe(Effect.orDie);
+				},
+			);
+
+			const exportAll = Effect.fn("SessionRepository.exportAll")(function* () {
+				const [pomodoros, focusSessions, breakSessions] = yield* Effect.all(
+					[allPomodoros(), allFocus(), allBreaks()],
+					{ concurrency: "unbounded" },
+				);
+				return { pomodoros, focusSessions, breakSessions };
+			}, Effect.orDie);
+
+			const importAll = Effect.fn("SessionRepository.importAll")(
+				function* (input: {
+					readonly pomodoros: ReadonlyArray<Pomodoro>;
+					readonly focusSessions: ReadonlyArray<FocusSession>;
+					readonly breakSessions: ReadonlyArray<BreakSession>;
+				}) {
+					return yield* sql.withTransaction(
+						Effect.gen(function* () {
+							const existing = yield* exportAll();
+							const known = new Set<string>([
+								...existing.pomodoros.map((p) => p.id),
+								...existing.focusSessions.map((s) => s.id),
+								...existing.breakSessions.map((s) => s.id),
+							]);
+							const pomodoroIds = new Set<string>(
+								existing.pomodoros.map((p) => p.id),
+							);
+							let skipped = 0;
+							const fresh = <A extends { readonly id: string }>(
+								rows: ReadonlyArray<A>,
+							) =>
+								rows.filter((row) => {
+									const isNew = !known.has(row.id);
+									if (!isNew) skipped++;
+									known.add(row.id);
+									return isNew;
+								});
+							const pomodoros = fresh(input.pomodoros);
+							for (const pomodoro of pomodoros) {
+								yield* restorePomodoro(new Pomodoro(pomodoro));
+								pomodoroIds.add(pomodoro.id);
+							}
+							const attached = <A extends { readonly pomodoroId: string }>(
+								rows: ReadonlyArray<A>,
+							) =>
+								rows.filter((row) => {
+									const ok = pomodoroIds.has(row.pomodoroId);
+									if (!ok) skipped++;
+									return ok;
+								});
+							const focusSessions = attached(fresh(input.focusSessions));
+							for (const session of focusSessions) {
+								yield* restoreFocus(new FocusSession(session));
+							}
+							const breakSessions = attached(fresh(input.breakSessions));
+							for (const session of breakSessions) {
+								yield* restoreBreak(new BreakSession(session));
+							}
+							return new ImportResult({
+								pomodoros: pomodoros.length,
+								focusSessions: focusSessions.length,
+								breakSessions: breakSessions.length,
+								skipped,
+							});
+						}),
+					);
+				},
+				Effect.orDie,
+			);
+
+			const cleanupAbandoned = Effect.fn("SessionRepository.cleanupAbandoned")(
+				function* (olderThan: DateTime.Utc) {
+					const cutoff = DateTime.toEpochMillis(olderThan);
+					return yield* sql.withTransaction(
+						Effect.gen(function* () {
+							yield* sql`
+								UPDATE pomodoros SET completed_at = (
+									SELECT MAX(completed_at) FROM (
+										SELECT completed_at FROM focus_sessions WHERE pomodoro_id = pomodoros.id AND completed = 1
+										UNION ALL
+										SELECT completed_at FROM break_sessions WHERE pomodoro_id = pomodoros.id AND completed = 1
+									)
+								)
+								WHERE completed_at IS NULL AND created_at < ${cutoff}
+							`;
+							const orphans = yield* sql<{ readonly id: string }>`
+								SELECT id FROM pomodoros WHERE completed_at IS NULL AND created_at < ${cutoff}
+							`;
+							const ids = orphans.map((row) => row.id);
+							if (ids.length > 0) {
+								yield* sql`DELETE FROM focus_sessions WHERE ${sql.in("pomodoro_id", ids)}`;
+								yield* sql`DELETE FROM break_sessions WHERE ${sql.in("pomodoro_id", ids)}`;
+								yield* sql`DELETE FROM pomodoros WHERE ${sql.in("id", ids)}`;
+							}
+							yield* sql`DELETE FROM focus_sessions WHERE completed = 0 AND created_at < ${cutoff}`;
+							yield* sql`DELETE FROM break_sessions WHERE completed = 0 AND created_at < ${cutoff}`;
+							return ids.length;
+						}),
+					);
+				},
+				Effect.orDie,
+			);
+
 			return {
+				history,
+				deletePomodoro,
+				exportAll,
+				importAll,
+				cleanupAbandoned,
 				createPomodoro,
 				completePomodoro,
 				labelPomodoro,

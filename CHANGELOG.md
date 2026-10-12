@@ -22,6 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Now-playing strip with track, artist, art, previous/next, and volume (#60)
 - Device picker that moves playback and remembers the device (#60)
 - Every playlist loads (paging past 50), with search and pinned favourites; the chosen playlist is remembered (#60)
+- Stats History tab: past pomodoros with label editing and deletion (#62)
+- Stats Data tab: JSON and CSV export, JSON import (#62)
+- Weekly summary, streak-at-risk nudge, focus per day/week chart, weekday × hour heatmap, and average overtime (#62)
+- Hourly cleanup completes or removes pomodoros left unfinished for a day (#62)
+
+### Changed
+
+- The current streak stays alive until the end of today instead of resetting to 0 each morning (#62)
 
 ### Fixed
 

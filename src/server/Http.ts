@@ -11,12 +11,14 @@ import { loggingLayer } from "@/shared/Logging";
 import { Auth } from "./Auth";
 import { DatabaseLive } from "./Database";
 import { AuthHandlers } from "./handlers/Auth";
+import { DataHandlers } from "./handlers/Data";
 import { AuthorizationLive } from "./handlers/Authorization";
 import { SessionsHandlers } from "./handlers/Sessions";
 import { SpotifyHandlers } from "./handlers/Spotify";
 import { SystemHandlers } from "./handlers/System";
 import { TelemetryHandlers } from "./handlers/Telemetry";
 import { EnvConfigProvider, ServerConfig } from "./ServerConfig";
+import { MaintenanceLive } from "./Maintenance";
 import { SessionRepository } from "./SessionRepository";
 import { SpotifyOAuth } from "./SpotifyOAuth";
 import { TelemetryLive } from "./Telemetry";
@@ -33,6 +35,7 @@ export const ApiRoutes = HttpApiBuilder.layer(Api).pipe(
 		AuthHandlers,
 		SpotifyHandlers,
 		SessionsHandlers,
+		DataHandlers,
 		TelemetryHandlers,
 	]),
 	Layer.provide(AuthorizationLive),
@@ -58,7 +61,9 @@ export const ApiServices = Layer.mergeAll(
  * @since 2.0.0
  * @category Layers
  */
-export const ApiApp = ApiRoutes.pipe(Layer.provide(ApiServices));
+export const ApiApp = Layer.merge(ApiRoutes, MaintenanceLive).pipe(
+	Layer.provide(ApiServices),
+);
 
 /**
  * The complete production server.

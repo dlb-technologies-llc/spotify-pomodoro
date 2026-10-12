@@ -7,6 +7,8 @@ import { BrowserKeyValueStore } from "@effect/platform-browser";
 import { DateTime, Effect, Option, Schema, Stream } from "effect";
 import { Atom } from "effect/reactivity";
 import type { Playlist } from "@/shared/domain/Spotify";
+import { ExportFile } from "@/shared/domain/History";
+import type { PomodoroId } from "@/shared/domain/Session";
 import type { ChimeSound, Settings } from "@/shared/domain/Settings";
 import type { NamedPreset } from "@/shared/domain/Timer";
 import { ApiClient } from "./ApiClient";
@@ -348,6 +350,71 @@ export const statsAtom = runtime.atom(
 	Effect.gen(function* () {
 		const api = yield* ApiClient;
 		return yield* api.sessions.stats({ query: { tz: viewerTimeZone() } });
+	}),
+);
+
+/**
+ * The most recent page of history; refresh to reload.
+ *
+ * @since 2.1.0
+ * @category Stats
+ */
+export const historyFirstPageAtom = runtime.atom(
+	ApiClient.use((api) => api.data.history({ query: { limit: 30 } })),
+);
+
+/**
+ * Loads a page of history, newest first, before an epoch-ms cursor.
+ *
+ * @since 2.1.0
+ * @category Stats
+ */
+export const historyPageAtom = runtime.fn((before: number | undefined) =>
+	ApiClient.use((api) => api.data.history({ query: { before, limit: 30 } })),
+);
+
+/**
+ * Deletes a pomodoro and its sessions.
+ *
+ * @since 2.1.0
+ * @category Stats
+ */
+export const deletePomodoroAtom = runtime.fn((id: PomodoroId) =>
+	ApiClient.use((api) => api.sessions.deletePomodoro({ params: { id } })),
+);
+
+/**
+ * Changes a past pomodoro's label; blank clears it.
+ *
+ * @since 2.1.0
+ * @category Stats
+ */
+export const labelPastPomodoroAtom = runtime.fn(
+	(change: { readonly id: PomodoroId; readonly label: string }) =>
+		ApiClient.use((api) => {
+			const trimmed = change.label.trim().slice(0, 120);
+			return api.sessions.labelPomodoro({
+				params: { id: change.id },
+				payload: { label: trimmed === "" ? null : trimmed },
+			});
+		}),
+);
+
+const decodeExportFile = Schema.decodeUnknownEffect(
+	Schema.fromJsonString(ExportFile),
+);
+
+/**
+ * Imports a previously exported JSON file.
+ *
+ * @since 2.1.0
+ * @category Stats
+ */
+export const importDataAtom = runtime.fn((text: string) =>
+	Effect.gen(function* () {
+		const file = yield* decodeExportFile(text);
+		const api = yield* ApiClient;
+		return yield* api.data.import({ payload: file });
 	}),
 );
 

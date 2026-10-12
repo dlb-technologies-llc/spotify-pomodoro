@@ -93,8 +93,10 @@ test.describe("Session persistence", () => {
 		await expect(
 			dialog.getByText(`${completedPomodoros} total pomodoros completed`),
 		).toBeVisible();
-		await dialog.getByRole("button", { name: "Week" }).click();
-		await expect(dialog.getByText("Pomodoros", { exact: true })).toBeVisible();
+		await dialog.getByRole("button", { name: "Week", exact: true }).click();
+		await expect(
+			dialog.getByText("Pomodoros", { exact: true }).first(),
+		).toBeVisible();
 	});
 });
 
