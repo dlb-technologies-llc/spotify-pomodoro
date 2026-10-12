@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Countdown in the browser tab title (#59)
 - Desktop notification when a phase ends while the app is in the background (#59)
 - Screen stays awake while the timer runs (#59)
+- Long break every N focus sessions, with cycle dots under the timer (#61)
+- Settings panel: custom focus, break, and long-break durations; auto-start; daily goal; chime sound and volume (#61)
+- Daily goal progress under the timer, updated as pomodoros complete (#61)
+- Optional label per pomodoro, editable while it runs (#61)
 
 ### Fixed
 

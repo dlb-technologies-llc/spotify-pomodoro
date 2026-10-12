@@ -18,8 +18,8 @@ import {
 import { KeyValueStore } from "effect/persistence";
 import {
 	TIMER_PRESETS,
+	type TimerConfig,
 	type TimerPhase,
-	type TimerPreset,
 	TimerSnapshot,
 	TimerState,
 } from "@/shared/domain/Timer";
@@ -154,7 +154,7 @@ export class Timer extends Context.Service<Timer>()(
 			const switchPhase = Effect.fn("Timer.switchPhase")(function* () {
 				const current = yield* SubscriptionRef.get(state);
 				if (current.phase === "idle") return;
-				const phase = current.phase === "focus" ? "break" : "focus";
+				const phase = current.phase === "focus" ? current.nextBreak : "focus";
 				yield* Effect.annotateCurrentSpan({ from: current.phase, to: phase });
 				yield* SubscriptionRef.set(
 					state,
@@ -164,6 +164,8 @@ export class Timer extends Context.Service<Timer>()(
 						status: "running",
 						remainingSeconds: current.config.durationOf(phase),
 						overtimeSeconds: 0,
+						focusCompleted:
+							current.focusCompleted + (current.phase === "focus" ? 1 : 0),
 					}),
 				);
 				yield* run;
@@ -173,15 +175,17 @@ export class Timer extends Context.Service<Timer>()(
 			const stop = Effect.fn("Timer.stop")(function* () {
 				yield* halt;
 				yield* SubscriptionRef.update(state, (current) =>
-					TimerState.idle(current.config),
+					TimerState.idle(
+						current.config,
+						current.focusCompleted + (current.phase === "focus" ? 1 : 0),
+					),
 				);
 				yield* persist;
 			});
 
-			const setPreset = Effect.fn("Timer.setPreset")(function* (
-				preset: TimerPreset,
+			const setConfig = Effect.fn("Timer.setConfig")(function* (
+				config: TimerConfig,
 			) {
-				const config = TIMER_PRESETS[preset];
 				yield* SubscriptionRef.update(
 					state,
 					(current) =>
@@ -211,7 +215,7 @@ export class Timer extends Context.Service<Timer>()(
 				reset,
 				switchPhase,
 				stop,
-				setPreset,
+				setConfig,
 			};
 		}),
 	},

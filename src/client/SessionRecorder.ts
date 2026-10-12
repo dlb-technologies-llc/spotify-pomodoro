@@ -3,10 +3,19 @@
  *
  * @module
  */
-import { Context, Effect, Layer, Option, Ref, Semaphore } from "effect";
+import {
+	Context,
+	Effect,
+	Layer,
+	Option,
+	PubSub,
+	Semaphore,
+	Stream,
+	SubscriptionRef,
+} from "effect";
 import { KeyValueStore } from "effect/persistence";
-import { RecordingIds } from "@/shared/domain/Session";
-import type { TimerPhase } from "@/shared/domain/Timer";
+import { type PomodoroId, RecordingIds } from "@/shared/domain/Session";
+import { isBreak, type TimerPhase } from "@/shared/domain/Timer";
 import { ApiClient } from "./ApiClient";
 
 /**
@@ -37,7 +46,8 @@ export class SessionRecorder extends Context.Service<SessionRecorder>()(
 				yield* KeyValueStore.KeyValueStore,
 				RecordingIds,
 			);
-			const ids = yield* Ref.make(
+			const completed = yield* PubSub.unbounded<PomodoroId>();
+			const ids = yield* SubscriptionRef.make(
 				yield* store.get(RECORDING_STORAGE_KEY).pipe(
 					Effect.map(Option.getOrElse(() => RecordingIds.empty)),
 					Effect.catch(() => Effect.succeed(RecordingIds.empty)),
@@ -45,7 +55,7 @@ export class SessionRecorder extends Context.Service<SessionRecorder>()(
 			);
 
 			const update = (f: (current: RecordingIds) => RecordingIds) =>
-				Ref.updateAndGet(ids, f).pipe(
+				SubscriptionRef.updateAndGet(ids, f).pipe(
 					Effect.flatMap((next) =>
 						store.set(RECORDING_STORAGE_KEY, next).pipe(Effect.ignore),
 					),
@@ -64,11 +74,17 @@ export class SessionRecorder extends Context.Service<SessionRecorder>()(
 			const startFocus = Effect.fn("SessionRecorder.startFocus")(function* (
 				configuredSeconds: number,
 			) {
-				const created = yield* attempt(api.sessions.createPomodoro());
+				const { label } = yield* SubscriptionRef.get(ids);
+				const created = yield* attempt(
+					api.sessions.createPomodoro({
+						query: { label: Option.getOrUndefined(label) },
+					}),
+				);
 				yield* update(
-					() =>
+					(current) =>
 						new RecordingIds({
 							...RecordingIds.empty,
+							label: current.label,
 							pomodoro: Option.map(created, (p) => p.id),
 						}),
 				);
@@ -89,7 +105,7 @@ export class SessionRecorder extends Context.Service<SessionRecorder>()(
 
 			const completeFocus = Effect.fn("SessionRecorder.completeFocus")(
 				function* (elapsedSeconds: number) {
-					const { focus } = yield* Ref.get(ids);
+					const { focus } = yield* SubscriptionRef.get(ids);
 					yield* update(
 						(current) => new RecordingIds({ ...current, focus: Option.none() }),
 					);
@@ -106,7 +122,7 @@ export class SessionRecorder extends Context.Service<SessionRecorder>()(
 			const startBreak = Effect.fn("SessionRecorder.startBreak")(function* (
 				configuredSeconds: number,
 			) {
-				const { pomodoro } = yield* Ref.get(ids);
+				const { pomodoro } = yield* SubscriptionRef.get(ids);
 				if (Option.isNone(pomodoro)) return;
 				const session = yield* attempt(
 					api.sessions.startBreak({
@@ -124,7 +140,7 @@ export class SessionRecorder extends Context.Service<SessionRecorder>()(
 
 			const completeBreak = Effect.fn("SessionRecorder.completeBreak")(
 				function* (elapsedSeconds: number) {
-					const current = yield* Ref.get(ids);
+					const current = yield* SubscriptionRef.get(ids);
 					yield* update(
 						(latest) => new RecordingIds({ ...latest, break: Option.none() }),
 					);
@@ -140,26 +156,53 @@ export class SessionRecorder extends Context.Service<SessionRecorder>()(
 
 			const completePomodoro = Effect.fn("SessionRecorder.completePomodoro")(
 				function* () {
-					const { pomodoro } = yield* Ref.get(ids);
-					yield* update(() => RecordingIds.empty);
+					const { pomodoro } = yield* SubscriptionRef.get(ids);
+					yield* update(
+						(current) =>
+							new RecordingIds({ ...RecordingIds.empty, label: current.label }),
+					);
 					if (Option.isNone(pomodoro)) return;
-					yield* attempt(
+					const done = yield* attempt(
 						api.sessions.completePomodoro({ params: { id: pomodoro.value } }),
 					);
+					if (Option.isSome(done)) {
+						yield* PubSub.publish(completed, pomodoro.value);
+					}
 				},
 			);
 
 			const completeSession = (phase: TimerPhase, elapsedSeconds: number) =>
 				phase === "focus"
 					? completeFocus(elapsedSeconds)
-					: phase === "break"
+					: isBreak(phase)
 						? completeBreak(elapsedSeconds)
 						: Effect.void;
 
 			const serial = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
 				lock.withPermits(1)(effect);
 
+			const relabel = Effect.fn("SessionRecorder.relabel")(function* (
+				label: Option.Option<string>,
+			) {
+				const { pomodoro } = yield* SubscriptionRef.get(ids);
+				yield* update((current) => new RecordingIds({ ...current, label }));
+				if (Option.isNone(pomodoro)) return;
+				yield* attempt(
+					api.sessions.labelPomodoro({
+						params: { id: pomodoro.value },
+						payload: { label: Option.getOrNull(label) },
+					}),
+				);
+			});
+
 			return {
+				label: ids.pipe(
+					SubscriptionRef.changes,
+					Stream.map((current) => current.label),
+					Stream.changes,
+				),
+				completed: Stream.fromPubSub(completed),
+				relabel: (label: Option.Option<string>) => serial(relabel(label)),
 				beginPomodoro: (focusSeconds: number) =>
 					serial(startFocus(focusSeconds)),
 				focusToBreak: (elapsedSeconds: number, breakSeconds: number) =>

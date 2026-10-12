@@ -7,11 +7,15 @@ import { BrowserKeyValueStore } from "@effect/platform-browser";
 import { DateTime, Effect, Option, Schema, Stream } from "effect";
 import { Atom } from "effect/reactivity";
 import type { Playlist } from "@/shared/domain/Spotify";
-import type { TimerPreset } from "@/shared/domain/Timer";
+import type { ChimeSound, Settings } from "@/shared/domain/Settings";
+import type { NamedPreset } from "@/shared/domain/Timer";
 import { ApiClient } from "./ApiClient";
+import { AudioNotification } from "./AudioNotification";
 import { ClientLive } from "./ClientLive";
 import { Playback } from "./Playback";
 import { Pomodoro } from "./Pomodoro";
+import { SessionRecorder } from "./SessionRecorder";
+import { SettingsStore } from "./SettingsStore";
 import { SpotifyAuth } from "./SpotifyAuth";
 import { SpotifyClient } from "./SpotifyClient";
 import { Timer } from "./Timer";
@@ -80,8 +84,91 @@ export const resetAtom = runtime.fn(() =>
  * @since 2.0.0
  * @category Timer
  */
-export const setPresetAtom = runtime.fn((preset: TimerPreset) =>
+export const setPresetAtom = runtime.fn((preset: NamedPreset) =>
 	Pomodoro.use((pomodoro) => pomodoro.setPreset(preset)),
+);
+
+/**
+ * Current settings.
+ *
+ * @since 2.1.0
+ * @category Settings
+ */
+export const settingsAtom = runtime.subscriptionRef(
+	Effect.map(SettingsStore, (store) => store.settings),
+);
+
+/**
+ * Replaces the settings.
+ *
+ * @since 2.1.0
+ * @category Settings
+ */
+export const saveSettingsAtom = runtime.fn((next: Settings) =>
+	Pomodoro.use((pomodoro) => pomodoro.updateSettings(() => next)),
+);
+
+/**
+ * Plays a chime so a sound can be previewed.
+ *
+ * @since 2.1.0
+ * @category Settings
+ */
+export const previewChimeAtom = runtime.fn(
+	(chime: { readonly sound: ChimeSound; readonly volume: number }) =>
+		AudioNotification.use((audio) => audio.play(chime.sound, chime.volume)),
+);
+
+/**
+ * What the current and next pomodoros are labelled with.
+ *
+ * @since 2.1.0
+ * @category Timer
+ */
+export const labelAtom = runtime.atom(
+	Stream.unwrap(Effect.map(SessionRecorder, (recorder) => recorder.label)),
+);
+
+/**
+ * Sets the label, updating the pomodoro in progress.
+ *
+ * @since 2.1.0
+ * @category Timer
+ */
+export const relabelAtom = runtime.fn((label: string) =>
+	Pomodoro.use((pomodoro) => {
+		const trimmed = label.trim();
+		return pomodoro.relabel(
+			trimmed === "" ? Option.none() : Option.some(trimmed.slice(0, 120)),
+		);
+	}),
+);
+
+const viewerTimeZone = () =>
+	Option.getOrUndefined(
+		DateTime.zoneMakeNamed(Intl.DateTimeFormat().resolvedOptions().timeZone),
+	);
+
+/**
+ * Pomodoros completed today, refreshed whenever one completes.
+ *
+ * @since 2.1.0
+ * @category Stats
+ */
+export const todayCountAtom = runtime.atom(
+	Stream.unwrap(
+		Effect.gen(function* () {
+			const api = yield* ApiClient;
+			const recorder = yield* SessionRecorder;
+			return Stream.concat(Stream.make(undefined), recorder.completed).pipe(
+				Stream.mapEffect(() =>
+					api.sessions
+						.stats({ query: { tz: viewerTimeZone() } })
+						.pipe(Effect.map((stats) => stats.today.pomodoros)),
+				),
+			);
+		}),
+	),
 );
 
 /**
@@ -200,12 +287,7 @@ export const clearTabTookOverAtom = runtime.fn(() =>
 export const statsAtom = runtime.atom(
 	Effect.gen(function* () {
 		const api = yield* ApiClient;
-		const tz = DateTime.zoneMakeNamed(
-			Intl.DateTimeFormat().resolvedOptions().timeZone,
-		);
-		return yield* api.sessions.stats({
-			query: { tz: Option.getOrUndefined(tz) },
-		});
+		return yield* api.sessions.stats({ query: { tz: viewerTimeZone() } });
 	}),
 );
 

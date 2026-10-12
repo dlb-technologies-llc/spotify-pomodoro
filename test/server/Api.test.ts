@@ -32,7 +32,7 @@ describe("sessions API", () => {
 				apiClientFor(handler),
 			);
 
-			const pomodoro = yield* sessions.createPomodoro();
+			const pomodoro = yield* sessions.createPomodoro({ query: {} });
 			assert.isTrue(Option.isNone(pomodoro.completedAt));
 
 			const focus = yield* sessions.startFocus({
@@ -132,6 +132,41 @@ describe("sessions API", () => {
 			assert.strictEqual(response.status, 400);
 			const ok = yield* send(handler, "/api/stats?tz=Pacific/Auckland");
 			assert.strictEqual(ok.status, 200);
+		}),
+	);
+
+	it.effect("stores, changes, and clears a pomodoro label", () =>
+		Effect.gen(function* () {
+			const handler = yield* startServer();
+			const { sessions } = yield* Effect.provide(
+				ApiClient,
+				apiClientFor(handler),
+			);
+			const created = yield* sessions.createPomodoro({
+				query: { label: "write report" },
+			});
+			assert.deepStrictEqual(created.label, Option.some("write report"));
+			const changed = yield* sessions.labelPomodoro({
+				params: { id: created.id },
+				payload: { label: "review PR" },
+			});
+			assert.deepStrictEqual(changed.label, Option.some("review PR"));
+			const cleared = yield* sessions.labelPomodoro({
+				params: { id: created.id },
+				payload: { label: null },
+			});
+			assert.isTrue(Option.isNone(cleared.label));
+
+			const unlabeled = yield* send(handler, "/api/pomodoros", {
+				method: "POST",
+			});
+			assert.strictEqual(unlabeled.status, 201);
+			const tooLong = yield* send(
+				handler,
+				`/api/pomodoros?label=${"x".repeat(121)}`,
+				{ method: "POST" },
+			);
+			assert.strictEqual(tooLong.status, 400);
 		}),
 	);
 });

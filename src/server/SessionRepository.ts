@@ -18,11 +18,14 @@ import {
 	BreakSessionId,
 	BreakSessionNotFound,
 	type CompleteSession,
+	type CreatePomodoro,
 	FocusSession,
 	FocusSessionId,
 	FocusSessionNotFound,
+	type LabelPomodoro,
 	Pomodoro,
 	PomodoroId,
+	PomodoroLabel,
 	PomodoroNotFound,
 	Seconds,
 	type StartSession,
@@ -70,6 +73,15 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 				Result: Pomodoro,
 				execute: ({ id, completedAt }) =>
 					sql`UPDATE pomodoros SET completed_at = ${completedAt} WHERE id = ${id} RETURNING *`,
+			});
+			const setPomodoroLabel = SqlSchema.findOneOption({
+				Request: Schema.Struct({
+					id: PomodoroId,
+					label: Schema.NullOr(PomodoroLabel),
+				}),
+				Result: Pomodoro,
+				execute: ({ id, label }) =>
+					sql`UPDATE pomodoros SET label = ${label} WHERE id = ${id} RETURNING *`,
 			});
 			const allPomodoros = SqlSchema.findAll({
 				Request: Schema.Void,
@@ -133,9 +145,10 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 			});
 
 			const createPomodoro = Effect.fn("SessionRepository.createPomodoro")(
-				function* () {
+				function* (input: CreatePomodoro) {
 					const row = yield* Pomodoro.insert.makeEffect({
 						completedAt: Option.none(),
+						label: Option.fromUndefinedOr(input.label),
 					});
 					const pomodoro = yield* insertPomodoro(row);
 					yield* Effect.annotateCurrentSpan("pomodoroId", pomodoro.id);
@@ -150,6 +163,19 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 					const completedAt = yield* DateTime.now;
 					const updated = yield* Effect.orDie(
 						markPomodoroComplete({ id, completedAt }),
+					);
+					return yield* Option.match(updated, {
+						onNone: () => Effect.fail(new PomodoroNotFound({ id })),
+						onSome: Effect.succeed,
+					});
+				},
+			);
+
+			const labelPomodoro = Effect.fn("SessionRepository.labelPomodoro")(
+				function* (id: PomodoroId, input: LabelPomodoro) {
+					yield* Effect.annotateCurrentSpan("pomodoroId", id);
+					const updated = yield* Effect.orDie(
+						setPomodoroLabel({ id, label: input.label }),
 					);
 					return yield* Option.match(updated, {
 						onNone: () => Effect.fail(new PomodoroNotFound({ id })),
@@ -236,6 +262,7 @@ export class SessionRepository extends Context.Service<SessionRepository>()(
 			return {
 				createPomodoro,
 				completePomodoro,
+				labelPomodoro,
 				startFocus,
 				completeFocus,
 				startBreak,

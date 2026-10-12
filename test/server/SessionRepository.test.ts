@@ -18,7 +18,7 @@ layer(TestLayer)("SessionRepository", (it) => {
 		Effect.gen(function* () {
 			const repo = yield* SessionRepository;
 			yield* TestClock.setTime(Date.parse("2025-03-01T10:00:00Z"));
-			const pomodoro = yield* repo.createPomodoro();
+			const pomodoro = yield* repo.createPomodoro({});
 			assert.strictEqual(
 				DateTime.formatIso(pomodoro.createdAt),
 				"2025-03-01T10:00:00.000Z",
@@ -37,7 +37,7 @@ layer(TestLayer)("SessionRepository", (it) => {
 			const repo = yield* SessionRepository;
 			const configuredSeconds = yield* sample(Seconds);
 			const elapsedSeconds = yield* sample(Seconds);
-			const pomodoro = yield* repo.createPomodoro();
+			const pomodoro = yield* repo.createPomodoro({});
 			const focus = yield* repo.startFocus({
 				pomodoroId: pomodoro.id,
 				configuredSeconds,
@@ -90,7 +90,7 @@ layer(TestLayer)("SessionRepository", (it) => {
 			const before = yield* repo.stats(
 				DateTime.zoneMakeNamedUnsafe("Asia/Tokyo"),
 			);
-			const pomodoro = yield* repo.createPomodoro();
+			const pomodoro = yield* repo.createPomodoro({});
 			yield* repo.completePomodoro(pomodoro.id);
 			const after = yield* repo.stats(
 				DateTime.zoneMakeNamedUnsafe("Asia/Tokyo"),
@@ -127,7 +127,7 @@ describe("migrations", () => {
 				const applied = yield* LibsqlMigrator.run({ loader: migrations });
 				assert.deepStrictEqual(
 					applied.map(([, name]) => name),
-					["initial", "session_indexes"],
+					["initial", "session_indexes", "pomodoro_label"],
 				);
 				const repo = yield* SessionRepository.make;
 				const stats = yield* repo.stats(DateTime.zoneMakeOffset(0));

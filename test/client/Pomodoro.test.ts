@@ -17,6 +17,9 @@ import {
 	SessionRecorder,
 } from "@/client/SessionRecorder";
 import { RecordingIds } from "@/shared/domain/Session";
+import { Settings } from "@/shared/domain/Settings";
+import { TimerConfig } from "@/shared/domain/Timer";
+import { SettingsStore } from "@/client/SettingsStore";
 import { Timer } from "@/client/Timer";
 import { httpClientFrom } from "../support/http";
 import { apiClientFor, BASE_URL, startServer } from "../support/server";
@@ -40,6 +43,7 @@ const controls = (
 				options.screen ?? ScreenWake.layerNoop,
 			),
 		),
+		Layer.provideMerge(SettingsStore.layer),
 		Layer.provideMerge(api),
 		Layer.provideMerge(options.store ?? KeyValueStore.layerMemory),
 	);
@@ -128,7 +132,7 @@ describe("Pomodoro", () => {
 		Effect.gen(function* () {
 			const chimes = yield* Ref.make(0);
 			const audio = Layer.succeed(AudioNotification, {
-				play: Ref.update(chimes, (n) => n + 1),
+				play: () => Ref.update(chimes, (n) => n + 1),
 			});
 			const offline = ApiClient.layerWithBaseUrl(BASE_URL).pipe(
 				Layer.provide(
@@ -138,6 +142,7 @@ describe("Pomodoro", () => {
 			yield* Effect.gen(function* () {
 				const pomodoro = yield* Pomodoro;
 				yield* pomodoro.setPreset("short");
+				yield* settle;
 				yield* pomodoro.start();
 				yield* TestClock.adjust("14 minutes");
 				yield* settle;
@@ -227,6 +232,94 @@ describe("Pomodoro", () => {
 				);
 				assert.strictEqual(result.completedFocusSessions, 1);
 			}).pipe(Effect.provide(controls(api, { store: shared })));
+		}),
+	);
+
+	it.effect("follows settings: durations, chime, and auto-start", () =>
+		Effect.gen(function* () {
+			const chimes = yield* Ref.make<ReadonlyArray<string>>([]);
+			const audio = Layer.succeed(AudioNotification, {
+				play: (sound: string, volume: number) =>
+					Ref.update(chimes, (all) => [...all, `${sound}@${volume}`]),
+			});
+			const offline = ApiClient.layerWithBaseUrl(BASE_URL).pipe(
+				Layer.provide(
+					httpClientFrom(() => new Response("down", { status: 503 })),
+				),
+			);
+			yield* Effect.gen(function* () {
+				const pomodoro = yield* Pomodoro;
+				const timer = yield* Timer;
+				yield* pomodoro.updateSettings(
+					(current) =>
+						new Settings({
+							...current,
+							timer: new TimerConfig({
+								...current.timer,
+								preset: "custom",
+								focusSeconds: 120,
+							}),
+							autoStartBreaks: true,
+							chime: "digital",
+							chimeVolume: 0.5,
+						}),
+				);
+				yield* settle;
+				assert.strictEqual((yield* timer.get).remainingSeconds, 120);
+				yield* pomodoro.start();
+				yield* TestClock.adjust("2 minutes");
+				yield* settle;
+				const state = yield* timer.get;
+				assert.strictEqual(state.phase, "break");
+				assert.strictEqual(state.status, "running");
+			}).pipe(Effect.provide(controls(offline, { audio })));
+			assert.deepStrictEqual(yield* Ref.get(chimes), ["digital@0.5"]);
+		}),
+	);
+
+	it.live("records the label and relabels the pomodoro in progress", () =>
+		Effect.gen(function* () {
+			const handler = yield* startServer();
+			const api = apiClientFor(handler);
+			yield* Effect.gen(function* () {
+				const pomodoro = yield* Pomodoro;
+				yield* pomodoro.relabel(Option.some("write report"));
+				yield* pomodoro.start();
+				const recording = KeyValueStore.toSchemaStore(
+					yield* KeyValueStore.KeyValueStore,
+					RecordingIds,
+				);
+				const ids = yield* eventually(
+					recording.get(RECORDING_STORAGE_KEY).pipe(
+						Effect.flatMap((stored) =>
+							Option.match(
+								Option.flatMap(stored, (current) => current.focus),
+								{
+									onNone: () => Effect.fail("not recorded yet"),
+									onSome: () => Effect.succeed(stored),
+								},
+							),
+						),
+					),
+				);
+				const pomodoroId = Option.flatMap(ids, (current) => current.pomodoro);
+				yield* pomodoro.relabel(Option.some("review PR"));
+				const client = yield* ApiClient;
+				const relabeled = yield* eventually(
+					client.sessions
+						.labelPomodoro({
+							params: { id: Option.getOrThrow(pomodoroId) },
+							payload: { label: "review PR" },
+						})
+						.pipe(
+							Effect.filterOrFail(
+								(p) => Option.contains(p.label, "review PR"),
+								() => "label not applied",
+							),
+						),
+				);
+				assert.deepStrictEqual(relabeled.label, Option.some("review PR"));
+			}).pipe(Effect.provide(controls(api)));
 		}),
 	);
 });

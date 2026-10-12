@@ -7,19 +7,20 @@ import { useAtomSet } from "@effect/atom-react";
 import { setPresetAtom } from "@/client/atoms";
 import { cn } from "@/lib/utils";
 import {
+	NamedPreset,
 	TIMER_PRESETS,
 	type TimerConfig,
-	TimerPreset,
 } from "@/shared/domain/Timer";
 
 const LABELS = {
 	short: "Short",
 	classic: "Classic",
 	long: "Long",
-} satisfies Record<TimerPreset, string>;
+} satisfies Record<NamedPreset, string>;
 
 /**
- * Buttons for the short, classic, and long presets.
+ * Buttons for the short, classic, and long presets; edited durations show
+ * as Custom.
  *
  * @since 1.0.0
  * @category Components
@@ -29,7 +30,7 @@ export function PresetSelector({ config }: { readonly config: TimerConfig }) {
 
 	return (
 		<div className="flex items-center gap-1">
-			{TimerPreset.literals.map((preset) => {
+			{NamedPreset.literals.map((preset) => {
 				const { focusSeconds, breakSeconds } = TIMER_PRESETS[preset];
 				const isActive = config.preset === preset;
 				return (
@@ -60,6 +61,11 @@ export function PresetSelector({ config }: { readonly config: TimerConfig }) {
 					</button>
 				);
 			})}
+			{config.preset === "custom" && (
+				<span className="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary/15 text-primary border border-primary/20">
+					Custom
+				</span>
+			)}
 		</div>
 	);
 }

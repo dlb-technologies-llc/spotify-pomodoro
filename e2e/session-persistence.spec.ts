@@ -33,7 +33,7 @@ test.describe("Session persistence", () => {
 		const created = api(page, "POST", /^\/api\/pomodoros$/, 201);
 		const focusStarted = api(page, "POST", /^\/api\/focus-sessions$/, 201);
 		await page.keyboard.press("Space");
-		await expect(page.getByText("focus")).toBeVisible();
+		await expect(page.getByText("focus", { exact: true })).toBeVisible();
 		await Promise.all([created, focusStarted]);
 
 		const focusDone = api(
@@ -44,7 +44,7 @@ test.describe("Session persistence", () => {
 		);
 		const breakStarted = api(page, "POST", /^\/api\/break-sessions$/, 201);
 		await page.keyboard.press("b");
-		await expect(page.getByText("break")).toBeVisible();
+		await expect(page.getByText("break", { exact: true })).toBeVisible();
 		await Promise.all([focusDone, breakStarted]);
 
 		const breakDone = api(
@@ -82,7 +82,7 @@ test.describe("Session persistence", () => {
 			200,
 		);
 		await page.keyboard.press("Space");
-		await expect(page.getByText("focus")).toBeVisible();
+		await expect(page.getByText("focus", { exact: true })).toBeVisible();
 		await page.keyboard.press("e");
 		await pomodoroDone;
 
