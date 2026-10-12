@@ -5,9 +5,20 @@
  */
 
 import { useAtomRefresh, useAtomValue } from "@effect/atom-react";
+import { Schema } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { useMemo, useState } from "react";
-import { statsAtom } from "@/client/atoms";
+import { settingsAtom, statsAtom } from "@/client/atoms";
+import { DataPanel } from "./stats/DataPanel";
+import { History } from "./stats/History";
+import {
+	FocusChart,
+	FocusHeatmap,
+	OvertimeSummary,
+	StreakNudge,
+	WeeklySummary,
+} from "./stats/Insights";
+import { formatDuration, localIsoDate } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import type {
 	DailyActivity,
@@ -23,29 +34,14 @@ import {
 } from "./ui/dialog";
 
 /**
- * Local calendar date as `YYYY-MM-DD`.
+ * Views inside the statistics dialog.
  *
- * @since 2.0.0
- * @category Helpers
+ * @since 2.1.0
+ * @category Schemas
  */
-const localIsoDate = (date: Date) =>
-	[
-		date.getFullYear(),
-		String(date.getMonth() + 1).padStart(2, "0"),
-		String(date.getDate()).padStart(2, "0"),
-	].join("-");
+const StatsTab = Schema.Literals(["overview", "history", "data"]);
 
-/**
- * Formats seconds as `1h 5m` or `5m`.
- *
- * @since 0.2.0
- * @category Helpers
- */
-export function formatDuration(totalSeconds: number): string {
-	const hours = Math.floor(totalSeconds / 3600);
-	const minutes = Math.floor((totalSeconds % 3600) / 60);
-	return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-}
+type StatsTab = typeof StatsTab.Type;
 
 /**
  * Dialog displaying pomodoro session statistics.
@@ -60,7 +56,13 @@ export function StatsDialog({
 }) {
 	const result = useAtomValue(statsAtom);
 	const refresh = useAtomRefresh(statsAtom);
+	const settings = AsyncResult.getOrElse(
+		useAtomValue(settingsAtom),
+		() => undefined,
+	);
 	const [period, setPeriod] = useState<StatsPeriod>("today");
+	const [tab, setTab] = useState<StatsTab>("overview");
+	const [today] = useState(() => new Date());
 	const stats = AsyncResult.getOrElse(result, () => undefined);
 	const loading = result.waiting || AsyncResult.isInitial(result);
 	const failed = AsyncResult.isFailure(result);
@@ -83,20 +85,53 @@ export function StatsDialog({
 					</DialogTitle>
 				</DialogHeader>
 
-				{loading && (
+				<div
+					role="tablist"
+					aria-label="statistics views"
+					className="flex gap-1 rounded-lg bg-secondary/30 p-0.5"
+				>
+					{StatsTab.literals.map((value) => (
+						<button
+							key={value}
+							type="button"
+							role="tab"
+							aria-selected={tab === value}
+							onClick={() => setTab(value)}
+							className={cn(
+								"flex-1 rounded-md px-3 py-1 text-xs capitalize transition-all",
+								tab === value
+									? "bg-primary/20 text-primary font-medium"
+									: "text-muted-foreground/70 hover:text-foreground",
+							)}
+						>
+							{value}
+						</button>
+					))}
+				</div>
+
+				{tab === "history" && <History />}
+				{tab === "data" && <DataPanel onImported={refresh} />}
+
+				{tab === "overview" && loading && (
 					<div className="py-8 text-center text-muted-foreground">
 						Loading...
 					</div>
 				)}
 
-				{failed && !loading && (
+				{tab === "overview" && failed && !loading && (
 					<div className="py-8 text-center text-red-500">
 						Failed to load statistics
 					</div>
 				)}
 
-				{stats && !loading && (
+				{tab === "overview" && stats && !loading && (
 					<div className="space-y-4">
+						<StreakNudge stats={stats} />
+						<WeeklySummary
+							stats={stats}
+							dailyGoal={settings?.dailyGoal ?? 0}
+							today={today}
+						/>
 						<ContributionGraph dailyActivity={stats.dailyActivity} />
 
 						<div className="flex items-center justify-between gap-2 px-1">
@@ -112,6 +147,10 @@ export function StatsDialog({
 						</div>
 
 						{periodStats && <PeriodStatsGrid stats={periodStats} />}
+
+						<FocusChart dailyActivity={stats.dailyActivity} today={today} />
+						<FocusHeatmap heatmap={stats.focusHeatmap} />
+						<OvertimeSummary stats={stats} />
 
 						<div className="pt-1 text-center text-xs text-muted-foreground/50">
 							{stats.completedPomodoros} total pomodoros completed

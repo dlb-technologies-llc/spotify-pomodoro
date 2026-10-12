@@ -104,6 +104,50 @@ layer(TestLayer)("SessionRepository", (it) => {
 	);
 });
 
+layer(TestLayer)("abandoned sessions", (it) => {
+	it.effect("completes or removes pomodoros left unfinished for a day", () =>
+		Effect.gen(function* () {
+			const repo = yield* SessionRepository;
+			yield* TestClock.setTime(Date.parse("2025-05-01T09:00:00Z"));
+			const finishedFocus = yield* repo.createPomodoro({});
+			const focus = yield* repo.startFocus({
+				pomodoroId: finishedFocus.id,
+				configuredSeconds: 60,
+			});
+			yield* repo.completeFocus(focus.id, { elapsedSeconds: 60 });
+			yield* repo.startBreak({
+				pomodoroId: finishedFocus.id,
+				configuredSeconds: 60,
+			});
+			const nothingDone = yield* repo.createPomodoro({});
+			yield* repo.startFocus({
+				pomodoroId: nothingDone.id,
+				configuredSeconds: 60,
+			});
+
+			yield* TestClock.adjust("25 hours");
+			const fresh = yield* repo.createPomodoro({});
+			const removed = yield* repo.cleanupAbandoned(
+				DateTime.subtract(yield* DateTime.now, { hours: 24 }),
+			);
+			assert.strictEqual(removed, 1);
+
+			const { items } = yield* repo.history({
+				before: Number.MAX_SAFE_INTEGER,
+				limit: 10,
+			});
+			assert.deepStrictEqual(
+				items.map((e) => e.id).toSorted(),
+				[finishedFocus.id, fresh.id].toSorted(),
+			);
+			const kept = items.find((e) => e.id === finishedFocus.id);
+			assert.isTrue(Option.isSome(kept?.completedAt ?? Option.none()));
+			const stats = yield* repo.stats(DateTime.zoneMakeOffset(0));
+			assert.strictEqual(stats.totalPomodoros, 2);
+		}),
+	);
+});
+
 describe("migrations", () => {
 	test.effect("adopt a database created by the old Drizzle migrations", () =>
 		Effect.gen(function* () {

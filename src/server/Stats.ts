@@ -96,6 +96,10 @@ export const currentRun = (
  * Computes statistics as seen from `now`, whose time zone defines calendar
  * days, weeks (starting Sunday), months, and years.
  *
+ * The current streak stays alive through today: until a pomodoro is done
+ * today, it counts back from yesterday and `streakAtRisk` is set. The heatmap
+ * holds focus seconds by weekday (0 = Sunday) and starting hour.
+ *
  * Only completed sessions count toward time totals, and period totals only
  * include sessions whose pomodoro was completed in that period.
  *
@@ -152,6 +156,25 @@ export const computeStats = (input: {
 	const daysWithPomodoro = new Set(
 		completed.map(({ completedAt }) => localDay(completedAt).index),
 	);
+	const today = calendarDay(now).index;
+	const doneToday = daysWithPomodoro.has(today);
+	const streak = currentRun(daysWithPomodoro, doneToday ? today : today - 1);
+
+	const heatmap = Array.from({ length: 7 }, () =>
+		Array.from({ length: 24 }, () => 0),
+	);
+	for (const session of focus) {
+		const { weekDay, hour } = DateTime.toParts(
+			DateTime.setZone(session.startedAt, now.zone),
+		);
+		const row = heatmap[weekDay];
+		if (row) row[hour] = (row[hour] ?? 0) + session.elapsedSeconds;
+	}
+
+	const average = (sessions: ReadonlyArray<FocusSession | BreakSession>) =>
+		sessions.length === 0
+			? 0
+			: Math.round(sumBy(sessions, overtime) / sessions.length);
 
 	return new SessionStats({
 		totalPomodoros: input.pomodoros.length,
@@ -162,8 +185,12 @@ export const computeStats = (input: {
 		totalBreakSeconds: sumBy(breaks, (s) => s.elapsedSeconds),
 		totalFocusOvertimeSeconds: sumBy(focus, overtime),
 		totalBreakOvertimeSeconds: sumBy(breaks, overtime),
-		currentStreak: currentRun(daysWithPomodoro, calendarDay(now).index),
+		currentStreak: streak,
 		longestStreak: longestRun(daysWithPomodoro),
+		streakAtRisk: !doneToday && streak > 0,
+		averageFocusOvertimeSeconds: average(focus),
+		averageBreakOvertimeSeconds: average(breaks),
+		focusHeatmap: heatmap,
 		today: statsSince("day"),
 		week: statsSince("week"),
 		month: statsSince("month"),

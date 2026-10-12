@@ -42,6 +42,12 @@ import {
 	SpotifyUnavailable,
 } from "../domain/Spotify";
 import { SessionStats, StatsQuery } from "../domain/Stats";
+import {
+	ExportFile,
+	HistoryPage,
+	HistoryQuery,
+	ImportResult,
+} from "../domain/History";
 
 /**
  * Session cookie security scheme.
@@ -144,6 +150,10 @@ export class SessionsApi extends HttpApiGroup.make("sessions")
 			query: CreatePomodoro,
 			success: Pomodoro.json.pipe(HttpApiSchema.status(201)),
 		}),
+		HttpApiEndpoint.delete("deletePomodoro", "/pomodoros/:id", {
+			params: { id: PomodoroId },
+			error: PomodoroNotFound,
+		}),
 		HttpApiEndpoint.patch("labelPomodoro", "/pomodoros/:id", {
 			params: { id: PomodoroId },
 			payload: LabelPomodoro,
@@ -186,6 +196,34 @@ export class SessionsApi extends HttpApiGroup.make("sessions")
 	.prefix("/api") {}
 
 /**
+ * History browsing, export, and import.
+ *
+ * @since 2.1.0
+ * @category Groups
+ */
+export class DataApi extends HttpApiGroup.make("data")
+	.add(
+		HttpApiEndpoint.get("history", "/history", {
+			query: HistoryQuery,
+			success: HistoryPage,
+		}),
+		HttpApiEndpoint.get("exportJson", "/export.json", {
+			success: ExportFile,
+		}),
+		HttpApiEndpoint.get("exportCsv", "/export.csv", {
+			success: Schema.String.pipe(
+				HttpApiSchema.asText({ contentType: "text/csv" }),
+			),
+		}),
+		HttpApiEndpoint.post("import", "/import", {
+			payload: ExportFile,
+			success: ImportResult,
+		}),
+	)
+	.middleware(Authorization)
+	.prefix("/api") {}
+
+/**
  * OTLP/JSON trace export request, as sent by the browser tracer.
  *
  * @since 2.0.0
@@ -222,4 +260,5 @@ export class Api extends HttpApi.make("spotify-pomodoro")
 	.add(AuthApi)
 	.add(SpotifyApi)
 	.add(SessionsApi)
+	.add(DataApi)
 	.add(TelemetryApi) {}
