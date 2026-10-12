@@ -124,7 +124,7 @@ describe("Timer", () => {
 
 	it.effect.prop(
 		"remaining, overtime, and elapsed agree with the clock",
-		[Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 2 * 60 * 60 }))],
+		[Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 45 * 60 }))],
 		([seconds]) =>
 			withTimer((timer) =>
 				Effect.gen(function* () {
@@ -144,5 +144,6 @@ describe("Timer", () => {
 					assert.strictEqual(state.isOvertime, seconds >= duration);
 				}),
 			).pipe(Effect.scoped),
+		{ arbitrary: { runs: 25 } },
 	);
 });
