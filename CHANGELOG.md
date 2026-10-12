@@ -31,6 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Toasts for success, info, and error messages (#63)
 - First-run walkthrough (#63)
 - Screen-reader announcements for phase changes; popovers close on Escape or outside click and return focus; reduced motion is honored (#63)
+- Content-Security-Policy and security headers on every response; HSTS over HTTPS (#64)
+- Login lockout after repeated failures per address (`AUTH_MAX_ATTEMPTS`, `AUTH_LOCKOUT_SECONDS`, `TRUST_PROXY`) (#64)
+- Multiple users with separate data via `AUTH_USERS`; the login username is now editable (#64)
+- Automatic SQLite backups with retention, "Back up now" in Stats → Data, and a documented restore (#64)
+- `GET /api/ready` checks the database; the Docker healthcheck uses it (#64)
+- CI: visual regression snapshots, Lighthouse budgets, CodeQL, and Renovate (#64)
 
 ### Changed
 
@@ -38,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Light-theme colors and faint text meet WCAG AA contrast (#63)
 - The timer fits phone screens on one line (#63)
 - The current streak stays alive until the end of today instead of resetting to 0 each morning (#62)
+- Pages and responses are marked `noindex, nofollow` in addition to `robots.txt` (#64)
 
 ### Fixed
 

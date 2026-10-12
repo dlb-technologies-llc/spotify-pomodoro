@@ -13,7 +13,10 @@ export default defineConfig({
 		baseURL: `http://localhost:${PORT}`,
 		trace: "retain-on-failure",
 	},
-	expect: { timeout: 10_000 },
+	expect: {
+		timeout: 10_000,
+		toHaveScreenshot: { maxDiffPixelRatio: 0.01, animations: "disabled" },
+	},
 	projects: [
 		{ name: "setup", testMatch: /auth\.setup\.ts/ },
 		{
@@ -23,12 +26,21 @@ export default defineConfig({
 				storageState: "playwright/.auth/user.json",
 			},
 			dependencies: ["setup"],
-			testIgnore: [/auth\.spec\.ts/, /live\.spec\.ts/],
+			testIgnore: [/auth\.spec\.ts/, /live\.spec\.ts/, /visual\.spec\.ts/],
 		},
 		{
 			name: "no-auth",
 			use: { ...devices["Desktop Chrome"] },
 			testMatch: /auth\.spec\.ts/,
+		},
+		{
+			name: "visual",
+			use: {
+				...devices["Desktop Chrome"],
+				storageState: "playwright/.auth/user.json",
+			},
+			dependencies: ["setup"],
+			testMatch: /visual\.spec\.ts/,
 		},
 		{
 			name: "live",

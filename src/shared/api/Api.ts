@@ -18,6 +18,7 @@ import {
 	AuthDisabled,
 	InvalidCredentials,
 	LoginRequest,
+	TooManyAttempts,
 	Unauthorized,
 } from "../domain/Auth";
 import {
@@ -43,6 +44,7 @@ import {
 	SpotifyUnavailable,
 } from "../domain/Spotify";
 import { SessionStats, StatsQuery } from "../domain/Stats";
+import { BackupInfo, BackupList, NotReady } from "../domain/Backup";
 import {
 	ExportFile,
 	HistoryPage,
@@ -86,7 +88,7 @@ export class Health extends Schema.Class<Health>("Health")({
 }) {}
 
 /**
- * Liveness probe.
+ * Liveness probe, and a readiness probe that also checks the database.
  *
  * @since 2.0.0
  * @category Groups
@@ -96,6 +98,10 @@ export class SystemApi extends HttpApiGroup.make("system", {
 }).add(
 	HttpApiEndpoint.get("health", "/api/health", {
 		success: Health,
+	}),
+	HttpApiEndpoint.get("ready", "/api/ready", {
+		success: Health,
+		error: NotReady,
 	}),
 ) {}
 
@@ -109,7 +115,7 @@ export class AuthApi extends HttpApiGroup.make("auth")
 	.add(
 		HttpApiEndpoint.post("login", "/login", {
 			payload: LoginRequest,
-			error: [InvalidCredentials, AuthDisabled],
+			error: [InvalidCredentials, AuthDisabled, TooManyAttempts],
 		}),
 		HttpApiEndpoint.post("logout", "/logout"),
 	)
@@ -226,6 +232,24 @@ export class DataApi extends HttpApiGroup.make("data")
 	.prefix("/api") {}
 
 /**
+ * Database backups: list them, or make one now.
+ *
+ * @since 2.1.0
+ * @category Groups
+ */
+export class BackupApi extends HttpApiGroup.make("backups")
+	.add(
+		HttpApiEndpoint.get("list", "/backups", {
+			success: BackupList,
+		}),
+		HttpApiEndpoint.post("create", "/backups", {
+			success: BackupInfo.pipe(HttpApiSchema.status(201)),
+		}),
+	)
+	.middleware(Authorization)
+	.prefix("/api") {}
+
+/**
  * OTLP/JSON trace export request, as sent by the browser tracer.
  *
  * @since 2.0.0
@@ -263,4 +287,5 @@ export class Api extends HttpApi.make("spotify-pomodoro")
 	.add(SpotifyApi)
 	.add(SessionsApi)
 	.add(DataApi)
+	.add(BackupApi)
 	.add(TelemetryApi) {}

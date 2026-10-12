@@ -18,14 +18,24 @@ To cut a release, bump `version` in `package.json` and add a `CHANGELOG.md` entr
 
 ## Checks
 
-| Command             | What it runs                                                      |
-| ------------------- | ----------------------------------------------------------------- |
-| `bun run check`     | oxlint (type-aware), oxfmt, `astro check`, unit tests             |
-| `bun run test`      | Unit and integration tests (Vitest)                               |
-| `bun run test:e2e`  | Playwright against a production build (`--project=chromium` etc.) |
-| `bun run test:live` | Read-only checks against the real Spotify API                     |
+| Command               | What it runs                                                          |
+| --------------------- | --------------------------------------------------------------------- |
+| `bun run check`       | oxlint (type-aware), oxfmt, `astro check`, unit tests                 |
+| `bun run test`        | Unit and integration tests (Vitest)                                   |
+| `bun run test:e2e`    | Playwright against a production build (`--project=chromium` etc.)     |
+| `bun run test:live`   | Read-only checks against the real Spotify API                         |
+| `bun run test:visual` | Screenshot comparisons, run in the Playwright Docker image            |
+| `bun run lighthouse`  | Lighthouse budgets against a production build (`bun run build` first) |
 
-CI runs all of these, plus a Docker build and smoke test, on every PR and push to `main`.
+CI runs all of these, plus a Docker build and smoke test (record, back up, restore), on every PR and push to `main`. CodeQL scans every PR and runs weekly, and Renovate opens grouped dependency updates on Mondays.
+
+### Visual snapshots
+
+Screenshots differ between operating systems, so baselines are rendered in `mcr.microsoft.com/playwright` (the same image CI uses) through Docker. After an intended UI change, run `bun run test:visual:update` and commit the files in `e2e/visual.spec.ts-snapshots/`. When Renovate bumps Playwright, update the snapshots in its PR the same way.
+
+### Lighthouse
+
+`lighthouserc.json` holds the budgets: performance ≥ 0.9, accessibility ≥ 0.95, best practices ≥ 0.95, script and total transfer size, LCP, CLS, and blocking time. SEO is deliberately not scored: the app must never be indexed, which `e2e/security.spec.ts` enforces (robots.txt, `noindex` meta tag, and `X-Robots-Tag` header). Locally, set `CHROME_PATH` to a Chromium binary and run with `AUTH_ENABLED=false PORT=2510`.
 
 ### Live Spotify tests
 

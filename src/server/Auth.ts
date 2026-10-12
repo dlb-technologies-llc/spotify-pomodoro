@@ -54,8 +54,9 @@ export class IssuedSession extends Schema.Class<IssuedSession>("IssuedSession")(
 /**
  * Login, cookie issuing, and cookie verification.
  *
- * When `AUTH_ENABLED` is off, every request is authorized and login fails
- * with `AuthDisabled`.
+ * When `AUTH_ENABLED` is off, every request is authorized as the default
+ * user and login fails with `AuthDisabled`. Every configured user is
+ * checked on login, so timing does not reveal which names exist.
  *
  * @since 1.1.0
  * @category Services
@@ -67,7 +68,7 @@ export class Auth extends Context.Service<Auth>()(
 			const { auth } = yield* ServerConfig;
 
 			const verify = Effect.fn("Auth.verify")(function* (cookie: string) {
-				if (Option.isNone(auth)) return;
+				if (Option.isNone(auth)) return AUTH_USERNAME;
 				const [payload, signature] = cookie.split(".");
 				if (!payload || !signature) {
 					return yield* new Unauthorized({ reason: "malformed" });
@@ -85,17 +86,22 @@ export class Auth extends Context.Service<Auth>()(
 				if (session.exp < nowSeconds) {
 					return yield* new Unauthorized({ reason: "expired" });
 				}
+				if (!auth.value.users.some((user) => user.name === session.username)) {
+					return yield* new Unauthorized({ reason: "unknown user" });
+				}
+				return session.username;
 			});
 
 			const login = Effect.fn("Auth.login")(function* (request: LoginRequest) {
 				if (Option.isNone(auth)) return yield* new AuthDisabled();
 				const settings = auth.value;
-				const userOk = safeEqual(request.username, AUTH_USERNAME);
-				const passOk = safeEqual(
-					request.password,
-					Redacted.value(settings.password),
+				const matches = settings.users.map(
+					(user) =>
+						safeEqual(request.username, user.name) &&
+						safeEqual(request.password, Redacted.value(user.password)),
 				);
-				if (!userOk || !passOk) {
+				const user = settings.users.find((_, index) => matches[index]);
+				if (user === undefined) {
 					yield* Effect.logWarning("Rejected login attempt");
 					return yield* new InvalidCredentials();
 				}
@@ -103,7 +109,7 @@ export class Auth extends Context.Service<Auth>()(
 				const json = yield* Effect.orDie(
 					encodeSession(
 						new AuthSession({
-							username: AUTH_USERNAME,
+							username: user.name,
 							exp: nowSeconds + settings.maxAgeSeconds,
 						}),
 					),

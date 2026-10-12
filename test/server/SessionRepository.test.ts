@@ -171,7 +171,7 @@ describe("migrations", () => {
 				const applied = yield* LibsqlMigrator.run({ loader: migrations });
 				assert.deepStrictEqual(
 					applied.map(([, name]) => name),
-					["initial", "session_indexes", "pomodoro_label"],
+					["initial", "session_indexes", "pomodoro_label", "pomodoro_owner"],
 				);
 				const repo = yield* SessionRepository.make;
 				const stats = yield* repo.stats(DateTime.zoneMakeOffset(0));

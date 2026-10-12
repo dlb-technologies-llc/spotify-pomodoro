@@ -90,11 +90,25 @@ AUTH_PASSWORD=your-secure-password
 AUTH_SECRET=random-32-character-string-for-signing
 ```
 
-- **Username:** Always `admin` (pre-filled in login form for password manager compatibility)
+- **Username:** `admin` (pre-filled in the login form)
 - **Password:** Your chosen password from `AUTH_PASSWORD`
 - **Secret:** Any random string used for signing cookies (keep this secret!)
 
 When enabled, all routes require login. The login page appears at `/login`.
+
+### Multiple users
+
+Set `AUTH_USERS` instead of `AUTH_PASSWORD` to give several people their own logins and their own pomodoros, stats, history, and exports:
+
+```bash
+AUTH_USERS=alice:first-password,bob:second-password
+```
+
+Names may use letters, digits, `.`, `_`, and `-`; passwords may contain `:` but not `,`. Data recorded before multiple users were configured belongs to `admin`. Removing a user from `AUTH_USERS` signs them out.
+
+### Login lockout
+
+After `AUTH_MAX_ATTEMPTS` (default 5) failed logins from one address within `AUTH_LOCKOUT_SECONDS` (default 900), that address is locked out for the same period. Behind a reverse proxy, set `TRUST_PROXY=true` so the client address comes from `X-Forwarded-For`; leave it off otherwise, or clients could pick their own address.
 
 > **Tip:** Generate a secure secret with `openssl rand -base64 32`
 
@@ -127,6 +141,29 @@ The database (`data/pomodoro.db`) and its migrations are created automatically o
 
 Session data is stored in SQLite (`DATABASE_URL`, default `file:./data/pomodoro.db`). With Docker it lives in the `pomodoro_data` volume; `docker compose down -v` resets it.
 
+### Backups
+
+The server backs up the database at startup and every `BACKUP_INTERVAL_HOURS` (default 24) into `BACKUP_DIR` (default: a `backups` folder next to the database, `/app/data/backups` in Docker), keeping `BACKUP_RETENTION_DAYS` (default 7) of them. **Back up now** in Stats → Data makes one on demand. Backups use SQLite's `VACUUM INTO`, so they are consistent while the app runs.
+
+To restore, stop the app, replace the database with a backup, and start it again:
+
+```bash
+docker compose stop app
+docker compose run --rm --no-deps --entrypoint sh app -c \
+  'rm -f /app/data/pomodoro.db-wal /app/data/pomodoro.db-shm && cp /app/data/backups/<file>.db /app/data/pomodoro.db'
+docker compose start app
+```
+
+Backups are kept in the same volume as the database, so also copy them somewhere else (e.g. `docker compose cp app:/app/data/backups ./backups`) to survive losing the volume.
+
+## Health checks
+
+`GET /api/health` answers when the server is up; `GET /api/ready` also checks the database and returns 503 when it can't be reached. The Docker healthcheck uses `/api/ready`.
+
+## Security and privacy
+
+Every response carries a Content-Security-Policy (scripts only from the app and Spotify's SDK), `X-Frame-Options: DENY`, `nosniff`, a strict referrer policy, and `X-Robots-Tag: noindex, nofollow`; HSTS is added over HTTPS (including behind a proxy that sets `X-Forwarded-Proto`). The app is never indexed by search engines: `robots.txt` disallows everything and pages carry a `noindex` meta tag.
+
 ## Configuration
 
 | Variable                                 | Default                              | Purpose                                        |
@@ -135,6 +172,13 @@ Session data is stored in SQLite (`DATABASE_URL`, default `file:./data/pomodoro.
 | `PUBLIC_SPOTIFY_REDIRECT_URI`            | `http://127.0.0.1:2500/callback`     | OAuth redirect URI registered with Spotify     |
 | `AUTH_ENABLED`                           | `false`                              | Require login                                  |
 | `AUTH_PASSWORD` / `AUTH_SECRET`          | —                                    | Required when auth is enabled                  |
+| `AUTH_USERS`                             | unset                                | `name:password,…` for multiple users           |
+| `AUTH_MAX_ATTEMPTS`                      | `5`                                  | Failed logins before lockout                   |
+| `AUTH_LOCKOUT_SECONDS`                   | `900`                                | Lockout window and duration                    |
+| `TRUST_PROXY`                            | `false`                              | Take client address from `X-Forwarded-For`     |
+| `BACKUP_DIR`                             | `backups/` next to the database      | Where backups go                               |
+| `BACKUP_INTERVAL_HOURS`                  | `24`                                 | Automatic backup interval; `0` turns it off    |
+| `BACKUP_RETENTION_DAYS`                  | `7`                                  | Days to keep backups; `0` keeps all            |
 | `AUTH_COOKIE_MAX_AGE`                    | `604800`                             | Session length in seconds                      |
 | `SECURE_COOKIES`                         | `true` in production                 | Mark cookies `Secure`                          |
 | `DATABASE_URL`                           | `file:./data/pomodoro.db`            | libSQL URL                                     |
@@ -172,7 +216,7 @@ The refresh token was revoked (for example after removing the app's access in yo
 
 ### Container health check failing
 
-Check logs with `docker compose logs`. Ensure port 2500 is not in use by another service, and that `AUTH_PASSWORD` and `AUTH_SECRET` are set when `AUTH_ENABLED=true`.
+Check logs with `docker compose logs`. Ensure port 2500 is not in use by another service, and that `AUTH_SECRET` and either `AUTH_PASSWORD` or `AUTH_USERS` are set when `AUTH_ENABLED=true`. The healthcheck calls `/api/ready`, which fails while the database is unreachable (check the `pomodoro_data` volume's permissions and free space).
 
 ## License
 

@@ -4,10 +4,11 @@
  * @module
  */
 import { Effect } from "effect";
-import type { Cookies } from "effect/http";
+import { type Cookies, HttpServerRequest } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 import { Api, sessionCookie } from "@/shared/api/Api";
 import { Auth } from "../Auth";
+import { clientKey, LoginLimiter } from "../LoginLimiter";
 import { ServerConfig } from "../ServerConfig";
 
 /**
@@ -19,7 +20,8 @@ export const AuthHandlers = HttpApiBuilder.group(
 	"auth",
 	Effect.fn(function* (handlers) {
 		const auth = yield* Auth;
-		const { secureCookies } = yield* ServerConfig;
+		const limiter = yield* LoginLimiter;
+		const { secureCookies, trustProxy } = yield* ServerConfig;
 		const cookieOptions: Cookies.Cookie["options"] = {
 			secure: secureCookies,
 			sameSite: "lax",
@@ -30,7 +32,19 @@ export const AuthHandlers = HttpApiBuilder.group(
 			.handle(
 				"login",
 				Effect.fn(function* ({ payload }) {
-					const session = yield* auth.login(payload);
+					const request = yield* HttpServerRequest.HttpServerRequest;
+					const client = clientKey(request.headers, trustProxy);
+					yield* limiter.check(client);
+					const session = yield* auth
+						.login(payload)
+						.pipe(
+							Effect.tapError((error) =>
+								error._tag === "InvalidCredentials"
+									? limiter.fail(client)
+									: Effect.void,
+							),
+						);
+					yield* limiter.succeed(client);
 					yield* HttpApiBuilder.securitySetCookie(
 						sessionCookie,
 						session.token,

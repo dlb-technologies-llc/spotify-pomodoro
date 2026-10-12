@@ -13,16 +13,10 @@ import { App } from "@/components/App";
 		<meta name="theme-color" content="#1a1820" media="(prefers-color-scheme: dark)" />
 		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<meta name="generator" content={Astro.generator} />
+		<meta name="robots" content="noindex, nofollow" />
 		<title>Spotify Pomodoro</title>
 		<meta name="description" content="A pomodoro timer that integrates with Spotify" />
-		<script is:inline>
-			try {
-				const stored = JSON.parse(localStorage.getItem("lofi-pomodoro-theme") ?? '"system"');
-				const dark = stored === "dark" || (stored !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
-				document.documentElement.classList.toggle("dark", dark);
-				document.documentElement.style.colorScheme = dark ? "dark" : "light";
-			} catch {}
-		</script>
+		<script is:inline src="/theme-init.js"></script>
 	</head>
 	<body class="min-h-screen bg-background text-foreground antialiased">
 		<App client:only="react" />
