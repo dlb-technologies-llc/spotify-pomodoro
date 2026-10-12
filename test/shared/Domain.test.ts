@@ -44,6 +44,7 @@ describe("TimerState", () => {
 			remainingSeconds: 0,
 			overtimeSeconds: 100 * 60 + 5,
 			config: TIMER_PRESETS.classic,
+			focusCompleted: 0,
 		});
 		assert.strictEqual(state.displayTime, "+100:05");
 	});

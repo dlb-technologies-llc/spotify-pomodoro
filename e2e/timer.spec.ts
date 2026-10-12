@@ -10,14 +10,14 @@ test.describe("Timer", () => {
 		const timerDisplay = page.locator(".timer-display");
 		await expect(timerDisplay).toContainText("25");
 		await expect(timerDisplay).toContainText("00");
-		await expect(page.getByText("focus")).not.toBeVisible();
-		await expect(page.getByText("break")).not.toBeVisible();
+		await expect(page.getByText("focus", { exact: true })).not.toBeVisible();
+		await expect(page.getByText("break", { exact: true })).not.toBeVisible();
 		await expect(page.getByText("press space to start")).toBeVisible();
 	});
 
 	test("starts focus on Space", async ({ page }) => {
 		await page.keyboard.press("Space");
-		await expect(page.getByText("focus")).toBeVisible();
+		await expect(page.getByText("focus", { exact: true })).toBeVisible();
 		await expect(
 			page.getByText("press b to start break", { exact: false }),
 		).toBeVisible();
@@ -25,15 +25,15 @@ test.describe("Timer", () => {
 
 	test("starts focus on Enter", async ({ page }) => {
 		await page.keyboard.press("Enter");
-		await expect(page.getByText("focus")).toBeVisible();
+		await expect(page.getByText("focus", { exact: true })).toBeVisible();
 	});
 
 	test("B skips to break during focus", async ({ page }) => {
 		await page.keyboard.press("Space");
-		await expect(page.getByText("focus")).toBeVisible();
+		await expect(page.getByText("focus", { exact: true })).toBeVisible();
 
 		await page.keyboard.press("b");
-		await expect(page.getByText("break")).toBeVisible();
+		await expect(page.getByText("break", { exact: true })).toBeVisible();
 		await expect(
 			page.getByText("press f to start focus", { exact: false }),
 		).toBeVisible();
@@ -41,42 +41,42 @@ test.describe("Timer", () => {
 
 	test("F skips to focus during break", async ({ page }) => {
 		await page.keyboard.press("Space");
-		await expect(page.getByText("focus")).toBeVisible();
+		await expect(page.getByText("focus", { exact: true })).toBeVisible();
 
 		await page.keyboard.press("b");
-		await expect(page.getByText("break")).toBeVisible();
+		await expect(page.getByText("break", { exact: true })).toBeVisible();
 
 		await page.keyboard.press("f");
-		await expect(page.getByText("focus")).toBeVisible();
+		await expect(page.getByText("focus", { exact: true })).toBeVisible();
 	});
 
 	test("E stops timer and returns to idle", async ({ page }) => {
 		await page.keyboard.press("Space");
-		await expect(page.getByText("focus")).toBeVisible();
+		await expect(page.getByText("focus", { exact: true })).toBeVisible();
 
 		await page.keyboard.press("e");
 		await expect(page.getByText("press space to start")).toBeVisible();
-		await expect(page.getByText("focus")).not.toBeVisible();
+		await expect(page.getByText("focus", { exact: true })).not.toBeVisible();
 	});
 
 	test("E stops timer from break phase", async ({ page }) => {
 		await page.keyboard.press("Space");
-		await expect(page.getByText("focus")).toBeVisible();
+		await expect(page.getByText("focus", { exact: true })).toBeVisible();
 
 		await page.keyboard.press("b");
-		await expect(page.getByText("break")).toBeVisible();
+		await expect(page.getByText("break", { exact: true })).toBeVisible();
 
 		await page.keyboard.press("e");
 		await expect(page.getByText("press space to start")).toBeVisible();
-		await expect(page.getByText("break")).not.toBeVisible();
+		await expect(page.getByText("break", { exact: true })).not.toBeVisible();
 	});
 
 	test("Space does nothing when timer is already running", async ({ page }) => {
 		await page.keyboard.press("Space");
-		await expect(page.getByText("focus")).toBeVisible();
+		await expect(page.getByText("focus", { exact: true })).toBeVisible();
 
 		await page.keyboard.press("Space");
-		await expect(page.getByText("focus")).toBeVisible();
+		await expect(page.getByText("focus", { exact: true })).toBeVisible();
 		await expect(
 			page.getByText("press b to start break", { exact: false }),
 		).toBeVisible();
@@ -102,27 +102,27 @@ test.describe("Timer", () => {
 
 	test("phase transitions update display labels", async ({ page }) => {
 		await page.keyboard.press("Space");
-		await expect(page.getByText("focus")).toBeVisible();
+		await expect(page.getByText("focus", { exact: true })).toBeVisible();
 
 		await page.keyboard.press("b");
-		await expect(page.getByText("break")).toBeVisible();
+		await expect(page.getByText("break", { exact: true })).toBeVisible();
 
 		await page.keyboard.press("f");
-		await expect(page.getByText("focus")).toBeVisible();
+		await expect(page.getByText("focus", { exact: true })).toBeVisible();
 	});
 
 	test("B and F are ignored in wrong phases", async ({ page }) => {
 		await page.keyboard.press("Space");
-		await expect(page.getByText("focus")).toBeVisible();
+		await expect(page.getByText("focus", { exact: true })).toBeVisible();
 
 		await page.keyboard.press("f");
-		await expect(page.getByText("focus")).toBeVisible();
+		await expect(page.getByText("focus", { exact: true })).toBeVisible();
 
 		await page.keyboard.press("b");
-		await expect(page.getByText("break")).toBeVisible();
+		await expect(page.getByText("break", { exact: true })).toBeVisible();
 
 		await page.keyboard.press("b");
-		await expect(page.getByText("break")).toBeVisible();
+		await expect(page.getByText("break", { exact: true })).toBeVisible();
 	});
 
 	test("break phase shows correct duration after preset change", async ({
@@ -133,16 +133,16 @@ test.describe("Timer", () => {
 		await expect(timerDisplay).toContainText("15");
 
 		await page.getByRole("button", { name: "start" }).click();
-		await expect(page.getByText("focus")).toBeVisible();
+		await expect(page.getByText("focus", { exact: true })).toBeVisible();
 
 		await page.keyboard.press("b");
-		await expect(page.getByText("break")).toBeVisible();
+		await expect(page.getByText("break", { exact: true })).toBeVisible();
 		await expect(timerDisplay).toContainText("03");
 	});
 
 	test("R is ignored while running", async ({ page }) => {
 		await page.keyboard.press("Space");
-		await expect(page.getByText("focus")).toBeVisible();
+		await expect(page.getByText("focus", { exact: true })).toBeVisible();
 		await page.keyboard.press("r");
 		await expect(
 			page.getByText("press b to start break", { exact: false }),

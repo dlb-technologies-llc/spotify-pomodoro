@@ -86,6 +86,17 @@ export const OptionalInstant = Schema.OptionFromNullOr(
 );
 
 /**
+ * What a pomodoro was spent on, e.g. "write report".
+ *
+ * @since 2.1.0
+ * @category Schemas
+ */
+export const PomodoroLabel = Schema.Trimmed.check(
+	Schema.isNonEmpty(),
+	Schema.isMaxLength(120),
+);
+
+/**
  * A pomodoro cycle grouping one focus session with its break.
  *
  * @since 0.2.0
@@ -95,7 +106,41 @@ export class Pomodoro extends Model.Class<Pomodoro>("Pomodoro")({
 	id: Model.UuidV4Insert(PomodoroId),
 	createdAt: Model.DateTimeInsertFromNumber,
 	completedAt: OptionalInstant,
+	label: Schema.OptionFromNullOr(PomodoroLabel),
 }) {}
+
+/**
+ * Query string for creating a pomodoro. A query rather than a body keeps
+ * body-less requests from older clients working.
+ *
+ * @since 2.1.0
+ * @category Schemas
+ */
+export const CreatePomodoro = Schema.Struct({
+	label: Schema.optional(PomodoroLabel),
+});
+
+/**
+ * @since 2.1.0
+ * @category Schemas
+ */
+export type CreatePomodoro = typeof CreatePomodoro.Type;
+
+/**
+ * Request body for changing a pomodoro's label; `null` clears it.
+ *
+ * @since 2.1.0
+ * @category Schemas
+ */
+export const LabelPomodoro = Schema.Struct({
+	label: Schema.NullOr(PomodoroLabel),
+});
+
+/**
+ * @since 2.1.0
+ * @category Schemas
+ */
+export type LabelPomodoro = typeof LabelPomodoro.Type;
 
 /**
  * Fields shared by focus and break sessions.
@@ -145,6 +190,7 @@ export class RecordingIds extends Schema.Class<RecordingIds>("RecordingIds")({
 	pomodoro: Schema.OptionFromNullOr(PomodoroId),
 	focus: Schema.OptionFromNullOr(FocusSessionId),
 	break: Schema.OptionFromNullOr(BreakSessionId),
+	label: Schema.OptionFromNullOr(PomodoroLabel),
 }) {
 	/**
 	 * Nothing being recorded.
@@ -155,6 +201,7 @@ export class RecordingIds extends Schema.Class<RecordingIds>("RecordingIds")({
 		pomodoro: Option.none(),
 		focus: Option.none(),
 		break: Option.none(),
+		label: Option.none(),
 	});
 }
 

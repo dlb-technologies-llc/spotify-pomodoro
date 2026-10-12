@@ -25,9 +25,11 @@ import {
 	BreakSessionId,
 	BreakSessionNotFound,
 	CompleteSession,
+	CreatePomodoro,
 	FocusSession,
 	FocusSessionId,
 	FocusSessionNotFound,
+	LabelPomodoro,
 	Pomodoro,
 	PomodoroId,
 	PomodoroNotFound,
@@ -139,7 +141,14 @@ export class SpotifyApi extends HttpApiGroup.make("spotify")
 export class SessionsApi extends HttpApiGroup.make("sessions")
 	.add(
 		HttpApiEndpoint.post("createPomodoro", "/pomodoros", {
+			query: CreatePomodoro,
 			success: Pomodoro.json.pipe(HttpApiSchema.status(201)),
+		}),
+		HttpApiEndpoint.patch("labelPomodoro", "/pomodoros/:id", {
+			params: { id: PomodoroId },
+			payload: LabelPomodoro,
+			success: Pomodoro.json,
+			error: PomodoroNotFound,
 		}),
 		HttpApiEndpoint.post("completePomodoro", "/pomodoros/:id/complete", {
 			params: { id: PomodoroId },

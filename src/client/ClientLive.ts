@@ -14,6 +14,7 @@ import { Notifier } from "./Notifier";
 import { Pomodoro } from "./Pomodoro";
 import { ScreenWake } from "./ScreenWake";
 import { SessionRecorder } from "./SessionRecorder";
+import { SettingsStore } from "./SettingsStore";
 import { SpotifyAuth } from "./SpotifyAuth";
 import { SpotifyClient } from "./SpotifyClient";
 import { StartupLive } from "./Startup";
@@ -49,6 +50,7 @@ const PomodoroLive = Pomodoro.layer.pipe(
 			ScreenWake.layer,
 		),
 	),
+	Layer.provideMerge(SettingsStore.layer),
 );
 
 /**

@@ -8,7 +8,7 @@ import { Effect, Fiber, Layer, Schema, Stream } from "effect";
 import { KeyValueStore } from "effect/persistence";
 import { TestClock } from "effect/testing";
 import { Timer } from "@/client/Timer";
-import { TIMER_PRESETS } from "@/shared/domain/Timer";
+import { TIMER_PRESETS, TimerConfig } from "@/shared/domain/Timer";
 
 const withTimer = <A, E>(f: (timer: Timer["Service"]) => Effect.Effect<A, E>) =>
 	Effect.flatMap(Timer.make, f).pipe(Effect.provide(KeyValueStore.layerMemory));
@@ -42,7 +42,7 @@ describe("Timer", () => {
 	it.effect("announces zero once, then counts overtime", () =>
 		withTimer((timer) =>
 			Effect.gen(function* () {
-				yield* timer.setPreset("short");
+				yield* timer.setConfig(TIMER_PRESETS.short);
 				const completions = yield* timer.completions.pipe(
 					Stream.take(1),
 					Stream.runCollect,
@@ -108,7 +108,7 @@ describe("Timer", () => {
 	it.effect("stop returns to idle with the chosen preset", () =>
 		withTimer((timer) =>
 			Effect.gen(function* () {
-				yield* timer.setPreset("long");
+				yield* timer.setConfig(TIMER_PRESETS.long);
 				yield* timer.start();
 				yield* TestClock.adjust("5 minutes");
 				yield* timer.stop();
@@ -169,7 +169,7 @@ describe("Timer", () => {
 		Effect.gen(function* () {
 			const store = yield* Layer.build(KeyValueStore.layerMemory);
 			const load = Timer.make.pipe(Effect.provide(store));
-			yield* (yield* load).setPreset("long");
+			yield* (yield* load).setConfig(TIMER_PRESETS.long);
 			const state = yield* (yield* load).get;
 			assert.strictEqual(state.config.preset, "long");
 			assert.strictEqual(state.status, "stopped");
@@ -178,5 +178,43 @@ describe("Timer", () => {
 				TIMER_PRESETS.long.focusSeconds,
 			);
 		}),
+	);
+
+	it.effect("takes a long break after every N focus sessions", () =>
+		withTimer((timer) =>
+			Effect.gen(function* () {
+				yield* timer.setConfig(
+					new TimerConfig({ ...TIMER_PRESETS.short, longBreakEvery: 2 }),
+				);
+				yield* timer.start();
+				yield* timer.switchPhase();
+				assert.strictEqual((yield* timer.get).phase, "break");
+				yield* timer.switchPhase();
+				const second = yield* timer.get;
+				assert.strictEqual(second.phase, "focus");
+				assert.strictEqual(second.cycleProgress, 1);
+				assert.strictEqual(second.nextBreak, "longBreak");
+				yield* timer.switchPhase();
+				const long = yield* timer.get;
+				assert.strictEqual(long.phase, "longBreak");
+				assert.strictEqual(
+					long.remainingSeconds,
+					TIMER_PRESETS.short.longBreakSeconds,
+				);
+				assert.strictEqual(long.cycleProgress, 0);
+				yield* timer.switchPhase();
+				assert.strictEqual((yield* timer.get).nextBreak, "break");
+			}),
+		),
+	);
+
+	it.effect("ending a focus session counts toward the cycle", () =>
+		withTimer((timer) =>
+			Effect.gen(function* () {
+				yield* timer.start();
+				yield* timer.stop();
+				assert.strictEqual((yield* timer.get).focusCompleted, 1);
+			}),
+		),
 	);
 });

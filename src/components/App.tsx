@@ -27,32 +27,37 @@ import {
 	togglePlaybackAtom,
 } from "@/client/atoms";
 import { cn } from "@/lib/utils";
-import type { TimerState } from "@/shared/domain/Timer";
+import { isBreak, phaseLabel, type TimerState } from "@/shared/domain/Timer";
 import { PresetSelector } from "./PresetSelector";
+import { CycleDots, GoalProgress, LabelInput } from "./SessionMeta";
+import { SettingsDialog } from "./SettingsDialog";
 import { StatsDialog } from "./StatsDialog";
 
 const PHASE_COLOR = {
 	idle: "text-[var(--lofi-idle)]",
 	focus: "text-[var(--lofi-focus)]",
 	break: "text-[var(--lofi-break)]",
+	longBreak: "text-[var(--lofi-break)]",
 } satisfies Record<TimerState["phase"], string>;
 
 const PHASE_GLOW = {
 	idle: "glow-idle",
 	focus: "glow-focus",
 	break: "glow-break",
+	longBreak: "glow-break",
 } satisfies Record<TimerState["phase"], string>;
 
 const BADGE = {
 	overtime: "bg-[var(--lofi-overtime-bg)] text-[var(--lofi-overtime)]",
 	focus: "bg-[var(--lofi-focus-bg)] text-[var(--lofi-focus)]",
 	break: "bg-[var(--lofi-break-bg)] text-[var(--lofi-break)]",
-};
+	longBreak: "bg-[var(--lofi-break-bg)] text-[var(--lofi-break)]",
+} satisfies Record<Exclude<TimerState["phase"], "idle"> | "overtime", string>;
 
 const hint = (state: TimerState) => {
 	if (state.status === "running") {
 		return state.phase === "focus"
-			? "press b to start break · e to end pomodoro"
+			? `press b to start ${phaseLabel(state.nextBreak)} · e to end pomodoro`
 			: "press f to start focus · e to end pomodoro";
 	}
 	return state.phase === "idle"
@@ -108,7 +113,7 @@ function useTimerKeys(state: TimerState | undefined) {
 			case "KeyB":
 				return running && state.phase === "focus" && act(() => skip());
 			case "KeyF":
-				return running && state.phase === "break" && act(() => skip());
+				return running && isBreak(state.phase) && act(() => skip());
 			case "KeyE":
 				return state.phase !== "idle" && act(() => stop());
 		}
@@ -121,10 +126,12 @@ function useTimerKeys(state: TimerState | undefined) {
 	}, []);
 }
 
-const PHASE_ICON = { idle: "🍅", focus: "🍅", break: "☕" } satisfies Record<
-	TimerState["phase"],
-	string
->;
+const PHASE_ICON = {
+	idle: "🍅",
+	focus: "🍅",
+	break: "☕",
+	longBreak: "🛋️",
+} satisfies Record<TimerState["phase"], string>;
 
 /**
  * Shows the countdown in the browser tab title.
@@ -136,7 +143,7 @@ function useTabTitle(state: TimerState | undefined) {
 	const title =
 		!state || state.phase === "idle"
 			? "Spotify Pomodoro"
-			: `${PHASE_ICON[state.phase]} ${state.displayTime} · ${state.isOvertime ? "overtime" : state.phase}`;
+			: `${PHASE_ICON[state.phase]} ${state.displayTime} · ${state.isOvertime ? "overtime" : phaseLabel(state.phase)}`;
 	useEffect(() => {
 		document.title = title;
 	}, [title]);
@@ -202,6 +209,20 @@ export function App() {
 			<div className="noise-overlay" />
 
 			<header className="fixed top-0 right-0 p-5 z-50 flex gap-2">
+				<SettingsDialog>
+					<button
+						type="button"
+						aria-label="settings"
+						className={cn(
+							"w-10 h-10 rounded-xl flex items-center justify-center",
+							"bg-card/60 backdrop-blur-sm border border-border",
+							"transition-all duration-300 hover:scale-110",
+							"text-sm font-medium",
+						)}
+					>
+						⚙️
+					</button>
+				</SettingsDialog>
 				<StatsDialog>
 					<button
 						type="button"
@@ -249,7 +270,7 @@ export function App() {
 									BADGE[badge],
 								)}
 							>
-								{badge}
+								{badge === "overtime" ? badge : phaseLabel(badge)}
 							</div>
 						)}
 
@@ -275,13 +296,19 @@ export function App() {
 						</div>
 					</div>
 
+					<CycleDots timer={timer} />
+
 					<TimerControls timer={timer} />
+
+					<LabelInput />
 
 					<span className="text-muted-foreground/40 text-xs tracking-wide pointer-coarse:hidden">
 						{hint(timer)}
 					</span>
 
 					<SpotifyControls />
+
+					<GoalProgress />
 				</div>
 			</main>
 
@@ -344,7 +371,14 @@ function TimerControls({ timer }: { readonly timer: TimerState }) {
 			: running
 				? [
 						timer.phase === "focus"
-							? button("take a break", "B", () => skip(), true)
+							? button(
+									timer.nextBreak === "longBreak"
+										? "take a long break"
+										: "take a break",
+									"B",
+									() => skip(),
+									true,
+								)
 							: button("back to focus", "F", () => skip(), true),
 						button("end", "E", () => stop()),
 					]
