@@ -2,7 +2,7 @@ services:
   app:
     build:
       context: .
-      target: builder
+      target: build
     ports:
       - "${PORT:-2500}:${PORT:-2500}"
     volumes:
@@ -13,7 +13,6 @@ services:
       - PUBLIC_SPOTIFY_CLIENT_ID=${PUBLIC_SPOTIFY_CLIENT_ID}
       - PUBLIC_SPOTIFY_REDIRECT_URI=${PUBLIC_SPOTIFY_REDIRECT_URI}
       - PORT=${PORT:-2500}
-      # Auth (optional - username is always "admin")
       - AUTH_ENABLED=${AUTH_ENABLED:-false}
       - AUTH_PASSWORD=${AUTH_PASSWORD:-}
       - AUTH_SECRET=${AUTH_SECRET:-}

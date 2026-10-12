@@ -1,0 +1,234 @@
+/**
+ * Atoms connecting React components to the browser services.
+ *
+ * @module
+ */
+import { BrowserKeyValueStore } from "@effect/platform-browser";
+import { DateTime, Effect, Option, Schema, Stream } from "effect";
+import { Atom } from "effect/reactivity";
+import type { Playlist } from "@/shared/domain/Spotify";
+import type { TimerPreset } from "@/shared/domain/Timer";
+import { ApiClient } from "./ApiClient";
+import { ClientLive } from "./ClientLive";
+import { Playback } from "./Playback";
+import { Pomodoro } from "./Pomodoro";
+import { SpotifyAuth } from "./SpotifyAuth";
+import { SpotifyClient } from "./SpotifyClient";
+import { Timer } from "./Timer";
+
+/**
+ * Runtime holding every browser service.
+ *
+ * @since 2.0.0
+ * @category Runtime
+ */
+export const runtime = Atom.runtime(ClientLive).pipe(Atom.keepAlive);
+
+/**
+ * Current timer state.
+ *
+ * @since 2.0.0
+ * @category Timer
+ */
+export const timerAtom = runtime.subscriptionRef(
+	Effect.map(Timer, (timer) => timer.state),
+);
+
+/**
+ * Starts a pomodoro, or resumes a reset phase.
+ *
+ * @since 2.0.0
+ * @category Timer
+ */
+export const startAtom = runtime.fn(() =>
+	Pomodoro.use((pomodoro) => pomodoro.start()),
+);
+
+/**
+ * Switches between focus and break.
+ *
+ * @since 2.0.0
+ * @category Timer
+ */
+export const skipAtom = runtime.fn(() =>
+	Pomodoro.use((pomodoro) => pomodoro.skip()),
+);
+
+/**
+ * Ends the pomodoro and returns to idle.
+ *
+ * @since 2.0.0
+ * @category Timer
+ */
+export const stopAtom = runtime.fn(() =>
+	Pomodoro.use((pomodoro) => pomodoro.stop()),
+);
+
+/**
+ * Restarts the current phase from its full duration.
+ *
+ * @since 2.0.0
+ * @category Timer
+ */
+export const resetAtom = runtime.fn(() =>
+	Pomodoro.use((pomodoro) => pomodoro.reset()),
+);
+
+/**
+ * Picks focus/break durations.
+ *
+ * @since 2.0.0
+ * @category Timer
+ */
+export const setPresetAtom = runtime.fn((preset: TimerPreset) =>
+	Pomodoro.use((pomodoro) => pomodoro.setPreset(preset)),
+);
+
+/**
+ * Whether a Spotify token is stored.
+ *
+ * @since 2.0.0
+ * @category Spotify
+ */
+export const spotifyConnectedAtom = runtime.atom(
+	Stream.unwrap(Effect.map(SpotifyAuth, (auth) => auth.connectedChanges)),
+);
+
+/**
+ * Sends the browser to Spotify's consent page.
+ *
+ * @since 2.0.0
+ * @category Spotify
+ */
+export const connectSpotifyAtom = runtime.fn(() =>
+	Effect.sync(() => window.location.assign("/api/spotify/authorize")),
+);
+
+/**
+ * Forgets the Spotify token and clears the player.
+ *
+ * @since 2.0.0
+ * @category Spotify
+ */
+export const disconnectSpotifyAtom = runtime.fn(() =>
+	Effect.gen(function* () {
+		yield* (yield* SpotifyAuth).disconnect();
+		yield* (yield* Playback).reset;
+	}),
+);
+
+/**
+ * The user's playlists, loaded once connected.
+ *
+ * @since 2.0.0
+ * @category Spotify
+ */
+export const playlistsAtom = runtime.atom((get) =>
+	Effect.gen(function* () {
+		const connected = yield* get.result(spotifyConnectedAtom);
+		if (!connected) return [];
+		return yield* (yield* SpotifyClient).playlists;
+	}),
+);
+
+/**
+ * What the player shows: playback, selection, and notices.
+ *
+ * @since 2.0.0
+ * @category Spotify
+ */
+export const playerAtom = runtime.subscriptionRef(
+	Effect.map(Playback, (playback) => playback.view),
+);
+
+/**
+ * Reloads playback state once connected.
+ *
+ * @since 2.0.0
+ * @category Spotify
+ */
+export const refreshPlaybackAtom = runtime.fn(() =>
+	Playback.use((playback) => playback.refresh()),
+);
+
+/**
+ * Starts a playlist with shuffle and repeat on.
+ *
+ * @since 2.0.0
+ * @category Spotify
+ */
+export const startPlaylistAtom = runtime.fn((playlist: Playlist) =>
+	Playback.use((playback) => playback.startPlaylist(playlist)),
+);
+
+/**
+ * Pauses, or resumes the selected playlist.
+ *
+ * @since 2.0.0
+ * @category Spotify
+ */
+export const togglePlaybackAtom = runtime.fn(() =>
+	Playback.use((playback) => playback.toggle()),
+);
+
+/**
+ * Dismisses the playback error.
+ *
+ * @since 2.0.0
+ * @category Spotify
+ */
+export const clearPlaybackErrorAtom = runtime.fn(() =>
+	Playback.use((playback) => playback.clearError),
+);
+
+/**
+ * Dismisses the "playback moved to another tab" notice.
+ *
+ * @since 2.0.0
+ * @category Spotify
+ */
+export const clearTabTookOverAtom = runtime.fn(() =>
+	Playback.use((playback) => playback.clearTabTookOver),
+);
+
+/**
+ * Statistics in the browser's time zone; refresh to reload.
+ *
+ * @since 2.0.0
+ * @category Stats
+ */
+export const statsAtom = runtime.atom(
+	Effect.gen(function* () {
+		const api = yield* ApiClient;
+		const tz = DateTime.zoneMakeNamed(
+			Intl.DateTimeFormat().resolvedOptions().timeZone,
+		);
+		return yield* api.sessions.stats({
+			query: { tz: Option.getOrUndefined(tz) },
+		});
+	}),
+);
+
+/**
+ * Color theme.
+ *
+ * @since 2.0.0
+ * @category Theme
+ */
+export const Theme = Schema.Literals(["light", "dark"]);
+
+/**
+ * Persisted color theme, defaulting to the system preference.
+ *
+ * @since 0.0.1
+ * @category Theme
+ */
+export const themeAtom = Atom.kvs({
+	runtime: Atom.runtime(BrowserKeyValueStore.layerLocalStorage),
+	key: "lofi-pomodoro-theme",
+	schema: Theme,
+	defaultValue: () =>
+		window.matchMedia("(prefers-color-scheme: dark)").matches
+			? "dark"
+			: "light",
+});

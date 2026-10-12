@@ -100,50 +100,59 @@ When enabled, all routes require login. The login page appears at `/login`.
 
 ## Keyboard Controls
 
-| Key               | Action                              |
-| ----------------- | ----------------------------------- |
-| `Space` / `Enter` | Start timer                         |
-| `E`               | End (stop) current session          |
-| `B`               | Skip to break (during focus)        |
-| `F`               | Skip to focus (during break)        |
-| `R`               | Reset timer (when stopped)          |
+| Key               | Action                       |
+| ----------------- | ---------------------------- |
+| `Space` / `Enter` | Start timer                  |
+| `E`               | End (stop) current session   |
+| `B`               | Skip to break (during focus) |
+| `F`               | Skip to focus (during break) |
+| `R`               | Reset timer (when stopped)   |
+
+The stats dialog uses your browser's time zone for days, weeks, and streaks.
 
 ## Local Development
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full workflow.
 
 ```bash
-# Without Docker
 bun install
-bun run db:migrate
-bun run dev
-
-# With Docker
-docker compose -f docker-compose.dev.yml up
+bun run dev          # http://127.0.0.1:2500
 ```
+
+The database (`data/pomodoro.db`) and its migrations are created automatically on the first request.
 
 ## Data Persistence
 
-Session data is stored in SQLite. When using Docker, data persists in the `pomodoro_data` volume.
+Session data is stored in SQLite (`DATABASE_URL`, default `file:./data/pomodoro.db`). With Docker it lives in the `pomodoro_data` volume; `docker compose down -v` resets it.
 
-To reset your data:
+## Configuration
 
-```bash
-# Docker
-docker compose down -v
-docker compose up -d
+| Variable                                 | Default                              | Purpose                                        |
+| ---------------------------------------- | ------------------------------------ | ---------------------------------------------- |
+| `PUBLIC_SPOTIFY_CLIENT_ID`               | —                                    | Spotify app client ID                          |
+| `PUBLIC_SPOTIFY_REDIRECT_URI`            | `http://127.0.0.1:2500/callback`     | OAuth redirect URI registered with Spotify     |
+| `AUTH_ENABLED`                           | `false`                              | Require login                                  |
+| `AUTH_PASSWORD` / `AUTH_SECRET`          | —                                    | Required when auth is enabled                  |
+| `AUTH_COOKIE_MAX_AGE`                    | `604800`                             | Session length in seconds                      |
+| `SECURE_COOKIES`                         | `true` in production                 | Mark cookies `Secure`                          |
+| `DATABASE_URL`                           | `file:./data/pomodoro.db`            | libSQL URL                                     |
+| `OTEL_COLLECTOR_URL`                     | unset                                | OTLP/HTTP collector; tracing is off when unset |
+| `LOG_LEVEL` / `LOG_FORMAT`               | `info` / pretty in dev, JSON in prod | Server logging                                 |
+| `PUBLIC_LOG_LEVEL` / `PUBLIC_LOG_FORMAT` | same                                 | Browser logging (build time)                   |
 
-# Local
-bun run db:clean
-```
+Spotify settings are read at runtime by the server, so one image works for any deployment.
+
+## Releases
+
+Every green push to `main` publishes `ghcr.io/dlb-technologies-llc/spotify-pomodoro:latest` (plus `:<version>` and `:sha-<commit>`); Watchtower deployments pick up `:latest`. A version bump in `package.json` also tags and publishes a GitHub release.
 
 ## Tech Stack
 
-- **Runtime:** Bun
-- **Framework:** Astro with React (SSR)
-- **Database:** SQLite with Drizzle ORM
-- **Styling:** Tailwind CSS v4 + shadcn/ui
-- **State Management:** Effect-TS
+- **Runtime:** Node 24 in production, Bun for tooling
+- **Framework:** Astro 7 (SSR) with React 19 islands
+- **Application:** Effect 4 end to end: `HttpApi` server and typed client, Effect SQL on libSQL/SQLite, atoms for UI state, Schema for every data type
+- **Styling:** Tailwind CSS v4
+- **Testing:** Vitest + `@effect/vitest`, Playwright, live Spotify checks
 
 ## Troubleshooting
 
@@ -155,9 +164,13 @@ Ensure the redirect URI in your Spotify app settings exactly matches `PUBLIC_SPO
 
 The app includes a built-in Web Playback SDK player, so playback works directly in the browser. If you see this error, make sure the browser tab has focus and try refreshing. Alternatively, open Spotify on your computer or phone to use it as the playback device.
 
+### "Spotify session expired, reconnect Spotify"
+
+The refresh token was revoked (for example after removing the app's access in your Spotify account). Click the Spotify button to connect again.
+
 ### Container health check failing
 
-Check logs with `docker compose logs`. Ensure port 2500 is not in use by another service.
+Check logs with `docker compose logs`. Ensure port 2500 is not in use by another service, and that `AUTH_PASSWORD` and `AUTH_SECRET` are set when `AUTH_ENABLED=true`.
 
 ## License
 

@@ -1,13 +1,15 @@
 {
 	"extends": "astro/tsconfigs/strict",
 	"include": [".astro/types.d.ts", "**/*"],
-	"exclude": ["dist"],
+	"exclude": ["dist", "node_modules", "playwright-report", "test-results"],
 	"compilerOptions": {
-		"baseUrl": ".",
 		"paths": {
 			"@/*": ["./src/*"]
 		},
 		"jsx": "react-jsx",
-		"jsxImportSource": "react"
+		"jsxImportSource": "react",
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"plugins": [{ "name": "@effect/language-service" }]
 	}
 }

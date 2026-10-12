@@ -1,49 +1,43 @@
 /**
- * Timer preset selector component.
+ * Timer preset selector.
  *
  * @module
  */
+import { useAtomSet } from "@effect/atom-react";
+import { setPresetAtom } from "@/client/atoms";
+import { cn } from "@/lib/utils";
+import {
+	TIMER_PRESETS,
+	type TimerConfig,
+	TimerPreset,
+} from "@/shared/domain/Timer";
 
-import { useTimer } from "../hooks/useTimer";
-import { cn } from "../lib/utils";
-
-const PRESETS = [
-	{ id: "short", label: "Short", focus: 15, break: 3, description: "15 / 3" },
-	{
-		id: "classic",
-		label: "Classic",
-		focus: 25,
-		break: 5,
-		description: "25 / 5",
-	},
-	{ id: "long", label: "Long", focus: 50, break: 10, description: "50 / 10" },
-] as const;
+const LABELS = {
+	short: "Short",
+	classic: "Classic",
+	long: "Long",
+} satisfies Record<TimerPreset, string>;
 
 /**
- * Minimal preset selector for timer durations.
+ * Buttons for the short, classic, and long presets.
  *
  * @since 1.0.0
  * @category Components
  */
-export function PresetSelector() {
-	const { state, setConfig } = useTimer();
-
-	const currentFocus = state ? Math.floor(state.config.focusDuration / 60) : 25;
-	const currentBreak = state ? Math.floor(state.config.breakDuration / 60) : 5;
-
-	const activePreset = PRESETS.find(
-		(p) => p.focus === currentFocus && p.break === currentBreak,
-	)?.id;
+export function PresetSelector({ config }: { readonly config: TimerConfig }) {
+	const setPreset = useAtomSet(setPresetAtom);
 
 	return (
 		<div className="flex items-center gap-1">
-			{PRESETS.map((preset) => {
-				const isActive = activePreset === preset.id;
+			{TimerPreset.literals.map((preset) => {
+				const { focusSeconds, breakSeconds } = TIMER_PRESETS[preset];
+				const isActive = config.preset === preset;
 				return (
 					<button
-						key={preset.id}
+						key={preset}
 						type="button"
-						onClick={() => setConfig(preset.focus, preset.break)}
+						aria-pressed={isActive}
+						onClick={() => setPreset(preset)}
 						className={cn(
 							"group relative px-3 py-1.5 rounded-lg text-xs font-medium",
 							"transition-all duration-300 ease-out",
@@ -53,7 +47,7 @@ export function PresetSelector() {
 								: "text-muted-foreground/50 hover:text-muted-foreground hover:bg-secondary/30",
 						)}
 					>
-						<span className="relative z-10">{preset.label}</span>
+						<span className="relative z-10">{LABELS[preset]}</span>
 						<span
 							className={cn(
 								"absolute inset-x-0 -bottom-5 text-[10px] font-mono",
@@ -61,7 +55,7 @@ export function PresetSelector() {
 								"text-muted-foreground/40",
 							)}
 						>
-							{preset.description}
+							{focusSeconds / 60} / {breakSeconds / 60}
 						</span>
 					</button>
 				);

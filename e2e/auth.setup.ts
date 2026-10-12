@@ -1,5 +1,5 @@
 import path from "node:path";
-import { expect, test as setup } from "@playwright/test";
+import { test as setup } from "@playwright/test";
 
 const authFile = path.join(
 	import.meta.dirname,

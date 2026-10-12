@@ -1,45 +1,25 @@
-# Stage 1: Build
-FROM oven/bun:1-slim AS builder
-
+# syntax=docker/dockerfile:1
+FROM oven/bun:1.3.13-slim AS deps
 WORKDIR /app
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile --production
 
-# Install dependencies
-COPY package.json bun.lock* ./
+FROM oven/bun:1.3.13-slim AS build
+WORKDIR /app
+COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
-
-# Copy source and build
 COPY . .
 RUN bun run build
 
-# Stage 2: Production
-FROM oven/bun:1-slim AS production
-
+FROM node:24-slim AS production
 WORKDIR /app
-
-# Copy built assets and dependencies
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./
-
-# Copy migration files and config for db:migrate
-COPY --from=builder /app/src/db/migrations ./src/db/migrations
-COPY --from=builder /app/drizzle.config.ts ./
-
-# Copy entrypoint script
-COPY docker-entrypoint.sh ./
-RUN chmod +x docker-entrypoint.sh
-
-# Create data directory for SQLite
+ENV NODE_ENV=production HOST=0.0.0.0 PORT=2500 DATABASE_URL=file:/app/data/pomodoro.db
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY package.json ./
 RUN mkdir -p /app/data
-
-# Install curl for healthcheck
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
-
-ENV HOST=0.0.0.0
-ENV PORT=2500
-
-EXPOSE 2500
-
 VOLUME ["/app/data"]
-
-ENTRYPOINT ["./docker-entrypoint.sh"]
+EXPOSE 2500
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD ["node", "-e", "fetch(`http://127.0.0.1:${process.env.PORT}/api/health`).then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+CMD ["node", "./dist/server/entry.mjs"]

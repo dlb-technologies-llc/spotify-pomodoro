@@ -12,19 +12,12 @@ services:
       - PUBLIC_SPOTIFY_CLIENT_ID=${PUBLIC_SPOTIFY_CLIENT_ID}
       - PUBLIC_SPOTIFY_REDIRECT_URI=${PUBLIC_SPOTIFY_REDIRECT_URI}
       - PORT=${PORT:-2500}
-      # Auth (optional - username is always "admin")
       - AUTH_ENABLED=${AUTH_ENABLED:-false}
       - AUTH_PASSWORD=${AUTH_PASSWORD:-}
       - AUTH_SECRET=${AUTH_SECRET:-}
-      # Observability (optional)
       - OTEL_COLLECTOR_URL=${OTEL_COLLECTOR_URL:-}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${PORT:-2500}/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
 volumes:
   pomodoro_data:

@@ -1,21 +1,21 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const PORT = 2500;
+
 export default defineConfig({
 	testDir: "./e2e",
-	fullyParallel: true,
-	forbidOnly: !!process.env.CI,
-	retries: process.env.CI ? 2 : 0,
-	workers: process.env.CI ? 1 : undefined,
-	reporter: process.env.CI ? "blob" : "html",
+	fullyParallel: false,
+	forbidOnly: Boolean(process.env.CI),
+	retries: process.env.CI ? 1 : 0,
+	workers: 1,
+	reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
 	use: {
-		baseURL: "http://localhost:2500",
-		trace: "on-first-retry",
+		baseURL: `http://localhost:${PORT}`,
+		trace: "retain-on-failure",
 	},
-	expect: {
-		timeout: 10_000,
-	},
+	expect: { timeout: 10_000 },
 	projects: [
-		{ name: "setup", testMatch: /.*\.setup\.ts/ },
+		{ name: "setup", testMatch: /auth\.setup\.ts/ },
 		{
 			name: "chromium",
 			use: {
@@ -23,24 +23,38 @@ export default defineConfig({
 				storageState: "playwright/.auth/user.json",
 			},
 			dependencies: ["setup"],
-			testIgnore: /auth\.spec\.ts/,
+			testIgnore: [/auth\.spec\.ts/, /live\.spec\.ts/],
 		},
 		{
 			name: "no-auth",
 			use: { ...devices["Desktop Chrome"] },
 			testMatch: /auth\.spec\.ts/,
 		},
+		{
+			name: "live",
+			use: {
+				...devices["Desktop Chrome"],
+				storageState: "playwright/.auth/user.json",
+			},
+			dependencies: ["setup"],
+			testMatch: /live\.spec\.ts/,
+		},
 	],
 	webServer: {
-		command:
-			"bun run db:clean && bun run db:migrate && bun run build && bun run preview",
-		url: "http://localhost:2500",
-		timeout: 120_000,
+		command: "rm -f data/e2e.db && bun run build && bun run start",
+		url: `http://localhost:${PORT}/api/health`,
+		timeout: 180_000,
 		reuseExistingServer: !process.env.CI,
 		env: {
+			DATABASE_URL: "file:./data/e2e.db",
 			AUTH_ENABLED: "true",
 			AUTH_PASSWORD: "test-password",
 			AUTH_SECRET: "test-secret-for-playwright-e2e-testing-32chars",
+			PUBLIC_SPOTIFY_CLIENT_ID:
+				process.env.PUBLIC_SPOTIFY_CLIENT_ID ?? "e2e-client-id",
+			LOG_LEVEL: "warning",
+			HOST: "localhost",
+			PORT: String(PORT),
 		},
 	},
 });

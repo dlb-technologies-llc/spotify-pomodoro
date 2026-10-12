@@ -1,18 +1,31 @@
 import path from "node:path";
 import { defineConfig } from "vitest/config";
 
+const alias = { "@": path.resolve(import.meta.dirname, "./src") };
+
 export default defineConfig({
+	resolve: { alias },
 	test: {
-		include: ["test/**/*.test.ts"],
-		globals: true,
 		setupFiles: ["./vitest.setup.ts"],
-		sequence: {
-			concurrent: true,
-		},
-	},
-	resolve: {
-		alias: {
-			"@": path.resolve(__dirname, "./src"),
-		},
+		projects: [
+			{
+				resolve: { alias },
+				test: {
+					name: "unit",
+					include: ["test/**/*.test.ts"],
+					exclude: ["test/live/**"],
+					setupFiles: ["./vitest.setup.ts"],
+				},
+			},
+			{
+				resolve: { alias },
+				test: {
+					name: "live",
+					include: ["test/live/**/*.test.ts"],
+					setupFiles: ["./vitest.setup.ts"],
+					testTimeout: 30_000,
+				},
+			},
+		],
 	},
 });
