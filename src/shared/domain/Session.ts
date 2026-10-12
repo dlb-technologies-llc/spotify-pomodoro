@@ -6,7 +6,7 @@
  *
  * @module
  */
-import { Schema } from "effect";
+import { Option, Schema } from "effect";
 import { Model } from "effect/schema";
 
 /**
@@ -134,6 +134,29 @@ export class BreakSession extends Model.Class<BreakSession>("BreakSession")({
 	id: Model.UuidV4Insert(BreakSessionId),
 	...sessionFields,
 }) {}
+
+/**
+ * Records the browser is filling in, saved so a reload keeps recording.
+ *
+ * @since 2.1.0
+ * @category Schemas
+ */
+export class RecordingIds extends Schema.Class<RecordingIds>("RecordingIds")({
+	pomodoro: Schema.OptionFromNullOr(PomodoroId),
+	focus: Schema.OptionFromNullOr(FocusSessionId),
+	break: Schema.OptionFromNullOr(BreakSessionId),
+}) {
+	/**
+	 * Nothing being recorded.
+	 *
+	 * @since 2.1.0
+	 */
+	static readonly empty = new RecordingIds({
+		pomodoro: Option.none(),
+		focus: Option.none(),
+		break: Option.none(),
+	});
+}
 
 /**
  * Request body for starting a focus or break session.

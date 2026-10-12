@@ -4,13 +4,14 @@
  * @module
  */
 import { assert, describe, it } from "@effect/vitest";
-import { Effect, Fiber, Schema, Stream } from "effect";
+import { Effect, Fiber, Layer, Schema, Stream } from "effect";
+import { KeyValueStore } from "effect/persistence";
 import { TestClock } from "effect/testing";
 import { Timer } from "@/client/Timer";
 import { TIMER_PRESETS } from "@/shared/domain/Timer";
 
 const withTimer = <A, E>(f: (timer: Timer["Service"]) => Effect.Effect<A, E>) =>
-	Effect.flatMap(Timer.make, f);
+	Effect.flatMap(Timer.make, f).pipe(Effect.provide(KeyValueStore.layerMemory));
 
 describe("Timer", () => {
 	it.effect("starts idle on the classic preset", () =>
@@ -145,5 +146,37 @@ describe("Timer", () => {
 				}),
 			).pipe(Effect.scoped),
 		{ arbitrary: { runs: 25 } },
+	);
+
+	it.effect("resumes the same countdown after a reload", () =>
+		Effect.gen(function* () {
+			const store = yield* Layer.build(KeyValueStore.layerMemory);
+			const load = Timer.make.pipe(Effect.provide(store));
+			const first = yield* load;
+			yield* first.start();
+			yield* TestClock.adjust("5 minutes");
+			const reloaded = yield* load;
+			const state = yield* reloaded.get;
+			assert.strictEqual(state.phase, "focus");
+			assert.strictEqual(state.status, "running");
+			assert.strictEqual(state.remainingSeconds, 20 * 60);
+			yield* TestClock.adjust("1 minute");
+			assert.strictEqual((yield* reloaded.get).remainingSeconds, 19 * 60);
+		}),
+	);
+
+	it.effect("restores a stopped preset and stays stopped", () =>
+		Effect.gen(function* () {
+			const store = yield* Layer.build(KeyValueStore.layerMemory);
+			const load = Timer.make.pipe(Effect.provide(store));
+			yield* (yield* load).setPreset("long");
+			const state = yield* (yield* load).get;
+			assert.strictEqual(state.config.preset, "long");
+			assert.strictEqual(state.status, "stopped");
+			assert.strictEqual(
+				state.remainingSeconds,
+				TIMER_PRESETS.long.focusSeconds,
+			);
+		}),
 	);
 });

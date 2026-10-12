@@ -10,7 +10,9 @@ import { loggingLayer } from "@/shared/Logging";
 import { ApiClient } from "./ApiClient";
 import { AudioNotification } from "./AudioNotification";
 import { Playback } from "./Playback";
+import { Notifier } from "./Notifier";
 import { Pomodoro } from "./Pomodoro";
+import { ScreenWake } from "./ScreenWake";
 import { SessionRecorder } from "./SessionRecorder";
 import { SpotifyAuth } from "./SpotifyAuth";
 import { SpotifyClient } from "./SpotifyClient";
@@ -39,7 +41,13 @@ const SpotifyLive = Playback.layer.pipe(
 
 const PomodoroLive = Pomodoro.layer.pipe(
 	Layer.provideMerge(
-		Layer.mergeAll(Timer.layer, SessionRecorder.layer, AudioNotification.layer),
+		Layer.mergeAll(
+			Timer.layer,
+			SessionRecorder.layer,
+			AudioNotification.layer,
+			Notifier.layer,
+			ScreenWake.layer,
+		),
 	),
 );
 
