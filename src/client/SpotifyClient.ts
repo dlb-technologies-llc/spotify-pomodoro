@@ -17,6 +17,8 @@ import {
 	PremiumRequired,
 	type RepeatMode,
 	SpotifyApiError,
+	SpotifyDevice,
+	SpotifyDevicesResponse,
 	SpotifyErrorBody,
 	SpotifyPlaybackResponse,
 	SpotifyPlaylistsPage,
@@ -179,6 +181,27 @@ export class SpotifyClient extends Context.Service<SpotifyClient>()(
 				);
 			});
 
+			const devices = send(
+				HttpClientRequest.get(`${SPOTIFY_API_URL}/me/player/devices`),
+			).pipe(
+				Effect.flatMap(decode(SpotifyDevicesResponse)),
+				Effect.map((body) =>
+					body.devices.flatMap((device) =>
+						device.id === null || device.is_restricted
+							? []
+							: [
+									new SpotifyDevice({
+										id: device.id,
+										name: device.name,
+										type: device.type,
+										isActive: device.is_active,
+									}),
+								],
+					),
+				),
+				Effect.withSpan("SpotifyClient.devices"),
+			);
+
 			const command = (
 				name: string,
 				path: string,
@@ -194,6 +217,7 @@ export class SpotifyClient extends Context.Service<SpotifyClient>()(
 				profile,
 				playlists,
 				playbackState,
+				devices,
 				play,
 				pause: command("pause", "pause", {}),
 				setShuffle: (state: boolean) =>

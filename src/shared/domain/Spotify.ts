@@ -227,6 +227,39 @@ export const SpotifyPlaybackResponse = Schema.Struct({
 });
 
 /**
+ * A device Spotify can play on.
+ *
+ * @since 2.0.0
+ * @category Schemas
+ */
+export class SpotifyDevice extends Schema.Class<SpotifyDevice>("SpotifyDevice")(
+	{
+		id: Schema.String,
+		name: Schema.String,
+		type: Schema.String,
+		isActive: Schema.Boolean,
+	},
+) {}
+
+/**
+ * Body of `GET /v1/me/player/devices`.
+ *
+ * @since 2.0.0
+ * @category Wire
+ */
+export const SpotifyDevicesResponse = Schema.Struct({
+	devices: Schema.Array(
+		Schema.Struct({
+			id: Schema.NullOr(Schema.String),
+			name: Schema.String,
+			type: Schema.String,
+			is_active: Schema.Boolean,
+			is_restricted: Schema.optional(Schema.Boolean),
+		}),
+	),
+});
+
+/**
  * Body of `GET /v1/me`.
  *
  * @since 2.0.0

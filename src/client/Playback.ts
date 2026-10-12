@@ -14,7 +14,19 @@ import {
 	Stream,
 	SubscriptionRef,
 } from "effect";
-import { PlaybackState, Playlist, PlayRequest } from "@/shared/domain/Spotify";
+import {
+	BROWSER_DEVICE_NAME,
+	type NoActiveDevice,
+	PlaybackState,
+	Playlist,
+	PlayRequest,
+	type PremiumRequired,
+	type SdkUnavailable,
+	type SpotifyApiError,
+	type SpotifyDevice,
+	type SpotifyNotConnected,
+	type SpotifyUnavailable,
+} from "@/shared/domain/Spotify";
 import { SpotifyClient } from "./SpotifyClient";
 import { WebPlaybackSdk } from "./WebPlaybackSdk";
 
@@ -77,12 +89,20 @@ export class PlayerView extends Schema.Class<PlayerView>("PlayerView")({
 	}
 }
 
-const playErrorMessage = (error: { readonly _tag: string }) => {
+const playErrorMessage = (
+	error:
+		| NoActiveDevice
+		| PremiumRequired
+		| SdkUnavailable
+		| SpotifyApiError
+		| SpotifyNotConnected
+		| SpotifyUnavailable,
+) => {
 	switch (error._tag) {
 		case "PremiumRequired":
 			return "Spotify Premium required for browser playback. Open Spotify on another device instead.";
 		case "SdkUnavailable":
-			return "Browser player unavailable. Open Spotify on your phone or computer.";
+			return `Browser player unavailable (${error.reason}: ${error.message}). Open Spotify on your phone or computer.`;
 		case "SpotifyNotConnected":
 			return "Spotify session expired, reconnect Spotify";
 		case "SpotifyUnavailable":
@@ -179,9 +199,22 @@ export class Playback extends Context.Service<Playback>()(
 							),
 					),
 					Effect.catchTag("NoActiveDevice", () =>
-						sdk.ensureDevice.pipe(
-							Effect.flatMap((sdkDeviceId) => playOn(Option.some(sdkDeviceId))),
-						),
+						Effect.gen(function* () {
+							const available = yield* spotify.devices.pipe(
+								Effect.orElseSucceed((): ReadonlyArray<SpotifyDevice> => []),
+							);
+							const idle = available.find(
+								(device) => device.name !== BROWSER_DEVICE_NAME,
+							);
+							if (idle) {
+								yield* Effect.logInfo("Waking idle Spotify device", {
+									device: idle.name,
+								});
+								return yield* playOn(Option.some(idle.id));
+							}
+							const sdkDeviceId = yield* sdk.ensureDevice;
+							return yield* playOn(Option.some(sdkDeviceId));
+						}),
 					),
 				);
 			});
@@ -203,6 +236,9 @@ export class Playback extends Context.Service<Playback>()(
 						);
 					}
 				},
+				Effect.tapCause((cause) =>
+					Effect.logWarning("Playback failed to start", cause),
+				),
 				Effect.catch((error) =>
 					update(() => ({
 						playingIntent: false,

@@ -17,6 +17,7 @@ import {
 	PremiumRequired,
 	SdkUnavailable,
 	SpotifyApiError,
+	SpotifyDevice,
 } from "@/shared/domain/Spotify";
 import { sample } from "../support/arbitrary";
 
@@ -28,6 +29,7 @@ const fakeSpotify = (options: {
 		request: PlayRequest,
 	) => Effect.Effect<void, NoActiveDevice | PremiumRequired | SpotifyApiError>;
 	readonly playback: Option.Option<PlaybackState>;
+	readonly devices: ReadonlyArray<SpotifyDevice>;
 }) => {
 	const record = (call: Call) =>
 		Ref.update(options.calls, (calls) => [...calls, call]);
@@ -35,6 +37,7 @@ const fakeSpotify = (options: {
 		profile: Effect.die("unused"),
 		playlists: Effect.succeed([]),
 		playbackState: Effect.succeed(options.playback),
+		devices: Effect.succeed([...options.devices]),
 		play: (request: PlayRequest) =>
 			record({ name: "play", request }).pipe(
 				Effect.andThen(options.play(request)),
@@ -61,6 +64,7 @@ const run = <A, E>(
 		>;
 		readonly sdk?: Effect.Effect<string, SdkUnavailable | PremiumRequired>;
 		readonly playback?: Option.Option<PlaybackState>;
+		readonly devices?: ReadonlyArray<SpotifyDevice>;
 	} = {},
 ) =>
 	Effect.gen(function* () {
@@ -73,6 +77,7 @@ const run = <A, E>(
 							calls,
 							play: options.play ?? (() => Effect.void),
 							playback: options.playback ?? Option.none(),
+							devices: options.devices ?? [],
 						}),
 					),
 					Layer.provide(fakeSdk(options.sdk ?? Effect.succeed("sdk-device"))),
@@ -119,6 +124,39 @@ describe("Playback", () => {
 			assert.deepStrictEqual(
 				calls.filter((c) => c.name === "play").map((c) => c.request?.deviceId),
 				[undefined, "sdk-device"],
+			);
+		}),
+	);
+
+	it.effect("wakes an idle device before trying the browser player", () =>
+		Effect.gen(function* () {
+			const playlist = yield* sample(Playlist);
+			const desktop = new SpotifyDevice({
+				id: "desktop-app",
+				name: "DLBDESKTOP",
+				type: "Computer",
+				isActive: false,
+			});
+			const browser = new SpotifyDevice({
+				id: "old-browser",
+				name: BROWSER_DEVICE_NAME,
+				type: "Computer",
+				isActive: false,
+			});
+			const { calls } = yield* run(
+				Playback.use((p) => p.startPlaylist(playlist)),
+				{
+					devices: [browser, desktop],
+					play: (request) =>
+						request.deviceId === undefined
+							? Effect.fail(new NoActiveDevice({ message: "none" }))
+							: Effect.void,
+					sdk: Effect.die("the browser player should not be needed"),
+				},
+			);
+			assert.deepStrictEqual(
+				calls.filter((c) => c.name === "play").map((c) => c.request?.deviceId),
+				[undefined, "desktop-app"],
 			);
 		}),
 	);
@@ -183,7 +221,7 @@ describe("Playback", () => {
 						new SdkUnavailable({ reason: "ScriptLoadFailed", message: "x" }),
 					),
 					message:
-						"Browser player unavailable. Open Spotify on your phone or computer.",
+						"Browser player unavailable (ScriptLoadFailed: x). Open Spotify on your phone or computer.",
 				},
 			];
 			for (const { play, sdk, message } of cases) {

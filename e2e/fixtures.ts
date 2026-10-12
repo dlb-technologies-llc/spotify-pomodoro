@@ -54,6 +54,9 @@ const mockSpotify = async (page: Page): Promise<SpotifyMock> => {
 		if (method === "GET" && path === "/v1/me/playlists") {
 			return route.fulfill({ json: { items: PLAYLISTS } });
 		}
+		if (method === "GET" && path === "/v1/me/player/devices") {
+			return route.fulfill({ json: { devices: [] } });
+		}
 		if (method === "GET" && path === "/v1/me/player") {
 			return mock.noDevice
 				? route.fulfill({ status: 204 })

@@ -75,6 +75,10 @@ describe.skipIf(!configured)("Spotify (live)", () => {
 					for (const playlist of playlists) {
 						assert.match(playlist.uri, /^spotify:/);
 					}
+					const devices = yield* client.devices;
+					for (const device of devices) {
+						assert.isString(device.id);
+					}
 					const playback = yield* client.playbackState;
 					if (Option.isSome(playback)) {
 						assert.isBoolean(playback.value.isPlaying);
