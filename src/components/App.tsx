@@ -6,29 +6,23 @@
 import { useAtom, useAtomSet, useAtomValue } from "@effect/atom-react";
 import { Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
-import { Globe, Smartphone, X } from "lucide-react";
-import { useEffect, useEffectEvent, useState } from "react";
+import { X } from "lucide-react";
+import { useEffect, useEffectEvent } from "react";
 import {
 	clearPlaybackErrorAtom,
 	clearTabTookOverAtom,
-	connectSpotifyAtom,
-	disconnectSpotifyAtom,
 	playerAtom,
-	playlistsAtom,
-	refreshPlaybackAtom,
 	resetAtom,
 	skipAtom,
-	spotifyConnectedAtom,
 	startAtom,
-	startPlaylistAtom,
 	stopAtom,
 	themeAtom,
 	timerAtom,
-	togglePlaybackAtom,
 } from "@/client/atoms";
 import { cn } from "@/lib/utils";
 import { isBreak, phaseLabel, type TimerState } from "@/shared/domain/Timer";
 import { PresetSelector } from "./PresetSelector";
+import { SpotifyControls } from "./Spotify";
 import { CycleDots, GoalProgress, LabelInput } from "./SessionMeta";
 import { SettingsDialog } from "./SettingsDialog";
 import { StatsDialog } from "./StatsDialog";
@@ -393,196 +387,6 @@ function TimerControls({ timer }: { readonly timer: TimerState }) {
 			<legend className="sr-only">timer controls</legend>
 			{buttons}
 		</fieldset>
-	);
-}
-
-/**
- * Connect button, or the vinyl, playlist picker, and disconnect control.
- *
- * @since 2.0.0
- * @category Components
- */
-function SpotifyControls() {
-	const connected = AsyncResult.getOrElse(
-		useAtomValue(spotifyConnectedAtom),
-		() => false,
-	);
-	const connect = useAtomSet(connectSpotifyAtom);
-	const disconnect = useAtomSet(disconnectSpotifyAtom);
-	const refreshPlayback = useAtomSet(refreshPlaybackAtom);
-	const startPlaylist = useAtomSet(startPlaylistAtom);
-	const toggle = useAtomSet(togglePlaybackAtom);
-	const playlists = AsyncResult.getOrElse(
-		useAtomValue(playlistsAtom),
-		() => [],
-	);
-	const player = AsyncResult.getOrElse(
-		useAtomValue(playerAtom),
-		() => undefined,
-	);
-	const [showPlaylists, setShowPlaylists] = useState(false);
-
-	useEffect(() => {
-		if (connected) refreshPlayback();
-	}, [connected, refreshPlayback]);
-
-	if (!connected) {
-		return (
-			<div className="flex items-center gap-4 mt-4">
-				<button
-					type="button"
-					aria-label="connect spotify"
-					onClick={() => connect()}
-					className={cn(
-						"flex items-center gap-2 px-4 py-2 rounded-xl text-sm",
-						"bg-[#1DB954]/10 text-[#1DB954]/70 border border-[#1DB954]/20",
-						"hover:bg-[#1DB954]/20 hover:text-[#1DB954] transition-all duration-300",
-					)}
-				>
-					<span className="text-base">♪</span>
-					<span>spotify</span>
-				</button>
-			</div>
-		);
-	}
-
-	const selected = player ? Option.getOrNull(player.selected) : null;
-	const spinning = player?.isPlaying ?? false;
-	const source = player
-		? Option.match(player.playback, {
-				onNone: () => null,
-				onSome: (playback) => playback.deviceSource,
-			})
-		: null;
-
-	return (
-		<>
-			<div className="flex items-center gap-4 mt-4">
-				<button
-					type="button"
-					aria-label={spinning ? "pause" : "play"}
-					onClick={() => toggle()}
-					disabled={!selected}
-					className={cn(
-						"relative group transition-transform duration-300",
-						selected && "hover:scale-105 cursor-pointer",
-						!selected && "opacity-40 cursor-default",
-					)}
-				>
-					<div
-						className={cn(
-							"w-[4.5rem] h-[4.5rem] rounded-full bg-[var(--lofi-vinyl)] border border-border",
-							spinning && "animate-spin-slow",
-							!spinning && selected && "animate-spin-slow paused",
-						)}
-					>
-						<div className="absolute inset-1.5 rounded-full border border-[var(--lofi-vinyl-groove)]" />
-						<div className="absolute inset-3 rounded-full border border-[var(--lofi-vinyl-groove)]" />
-						<div
-							className={cn(
-								"absolute inset-[18px] rounded-full overflow-hidden",
-								"bg-card border border-border flex items-center justify-center",
-							)}
-						>
-							{selected?.imageUrl ? (
-								<img
-									src={selected.imageUrl}
-									alt=""
-									className="w-full h-full object-cover"
-								/>
-							) : (
-								<span className="text-muted-foreground/30 text-xs">♪</span>
-							)}
-						</div>
-					</div>
-				</button>
-
-				<div className="relative">
-					<button
-						type="button"
-						onClick={() => setShowPlaylists(!showPlaylists)}
-						className={cn(
-							"flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-base",
-							"bg-secondary/30 text-muted-foreground border border-border",
-							"hover:bg-secondary/50 hover:text-foreground transition-all duration-300",
-						)}
-					>
-						<span className="truncate max-w-[160px]">
-							{selected?.name ?? "playlist"}
-						</span>
-						<span className="text-xs opacity-50">▼</span>
-					</button>
-
-					{showPlaylists && (
-						<div
-							className={cn(
-								"absolute bottom-full mb-2 left-0 w-72",
-								"bg-card/95 backdrop-blur-lg rounded-xl",
-								"border border-border shadow-xl",
-								"overflow-hidden z-50",
-							)}
-						>
-							<div className="max-h-56 overflow-y-auto">
-								{playlists.map((playlist) => (
-									<button
-										type="button"
-										key={playlist.id}
-										onClick={() => {
-											setShowPlaylists(false);
-											startPlaylist(playlist);
-										}}
-										className={cn(
-											"w-full flex items-center gap-3 p-3 text-left",
-											"hover:bg-secondary/50 transition-colors",
-											selected?.id === playlist.id && "bg-primary/10",
-										)}
-									>
-										{playlist.imageUrl ? (
-											<img
-												src={playlist.imageUrl}
-												alt=""
-												className="w-10 h-10 rounded object-cover"
-											/>
-										) : (
-											<div className="w-10 h-10 rounded bg-secondary flex items-center justify-center text-muted-foreground/30 text-sm">
-												♪
-											</div>
-										)}
-										<span className="truncate text-foreground/80">
-											{playlist.name}
-										</span>
-									</button>
-								))}
-							</div>
-						</div>
-					)}
-				</div>
-
-				<button
-					type="button"
-					aria-label="disconnect spotify"
-					onClick={() => disconnect()}
-					className="text-xs text-muted-foreground/30 hover:text-muted-foreground/50 transition-colors"
-				>
-					×
-				</button>
-			</div>
-			{source && (
-				<div className="flex items-center gap-1.5 text-muted-foreground/30 text-xs mt-2">
-					{source === "browser" ? (
-						<>
-							<Globe className="w-3 h-3" />
-							<span>Browser</span>
-						</>
-					) : (
-						<>
-							<Smartphone className="w-3 h-3" />
-							<span>External device</span>
-						</>
-					)}
-				</div>
-			)}
-		</>
 	);
 }
 

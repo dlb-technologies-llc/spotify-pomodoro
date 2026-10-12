@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings panel: custom focus, break, and long-break durations; auto-start; daily goal; chime sound and volume (#61)
 - Daily goal progress under the timer, updated as pomodoros complete (#61)
 - Optional label per pomodoro, editable while it runs (#61)
+- Music follows the pomodoro: focus playlist, and on breaks switch playlist, pause, or fade the volume down; optional pause when a pomodoro ends (#60)
+- Now-playing strip with track, artist, art, previous/next, and volume (#60)
+- Device picker that moves playback and remembers the device (#60)
+- Every playlist loads (paging past 50), with search and pinned favourites; the chosen playlist is remembered (#60)
 
 ### Fixed
 

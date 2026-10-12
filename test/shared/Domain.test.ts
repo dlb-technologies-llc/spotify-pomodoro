@@ -7,9 +7,11 @@ import { assert, describe, it } from "@effect/vitest";
 import { Schema } from "effect";
 import { loginErrorMessage, safeReturnPath } from "@/client/login";
 import { PlayerView } from "@/client/Playback";
+import { arrangePlaylists } from "@/components/Spotify";
 import {
 	BROWSER_DEVICE_NAME,
 	PlaybackState,
+	Playlist,
 	SpotifyToken,
 } from "@/shared/domain/Spotify";
 import { TIMER_PRESETS, TimerState } from "@/shared/domain/Timer";
@@ -113,6 +115,22 @@ describe("login", () => {
 		assert.strictEqual(
 			loginErrorMessage({ _tag: "HttpClientError" }),
 			"Connection failed",
+		);
+	});
+});
+
+describe("playlist picker ordering", () => {
+	it("puts pinned playlists first and filters by name", () => {
+		const make = (id: string, name: string) =>
+			new Playlist({ id, name, uri: `spotify:playlist:${id}`, imageUrl: null });
+		const all = [make("a", "Lofi"), make("b", "Jazz"), make("c", "Lofi Jazz")];
+		assert.deepStrictEqual(
+			arrangePlaylists(all, ["c"], "").map((p) => p.id),
+			["c", "a", "b"],
+		);
+		assert.deepStrictEqual(
+			arrangePlaylists(all, ["b"], "jazz").map((p) => p.id),
+			["b", "c"],
 		);
 	});
 });

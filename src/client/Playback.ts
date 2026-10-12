@@ -9,7 +9,9 @@ import {
 	FiberSet,
 	Layer,
 	Option,
+	Predicate,
 	Ref,
+	Schedule,
 	Schema,
 	Stream,
 	SubscriptionRef,
@@ -27,6 +29,8 @@ import {
 	type SpotifyNotConnected,
 	type SpotifyUnavailable,
 } from "@/shared/domain/Spotify";
+import { MusicSettings, Settings } from "@/shared/domain/Settings";
+import { SettingsStore } from "./SettingsStore";
 import { SpotifyClient } from "./SpotifyClient";
 import { WebPlaybackSdk } from "./WebPlaybackSdk";
 
@@ -128,9 +132,36 @@ export class Playback extends Context.Service<Playback>()(
 		make: Effect.gen(function* () {
 			const spotify = yield* SpotifyClient;
 			const sdk = yield* WebPlaybackSdk;
-			const view = yield* SubscriptionRef.make(PlayerView.empty);
-			const lastDeviceId = yield* Ref.make(Option.none<string>());
+			const settings = yield* SettingsStore;
+			const { music } = yield* settings.get;
+			const view = yield* SubscriptionRef.make(
+				new PlayerView({ ...PlayerView.empty, selected: music.focusPlaylist }),
+			);
+			const lastDeviceId = yield* Ref.make(music.deviceId);
 			const scope = yield* Effect.scope;
+
+			const saveMusic = (
+				f: (current: MusicSettings) => Partial<MusicSettings>,
+			) =>
+				settings.update(
+					(current) =>
+						new Settings({
+							...current,
+							music: new MusicSettings({
+								...current.music,
+								...f(current.music),
+							}),
+						}),
+				);
+
+			const rememberDevice = (deviceId: string) =>
+				Ref.getAndSet(lastDeviceId, Option.some(deviceId)).pipe(
+					Effect.flatMap((previous) =>
+						Option.contains(previous, deviceId)
+							? Effect.void
+							: saveMusic(() => ({ deviceId: Option.some(deviceId) })),
+					),
+				);
 
 			const update = (f: (current: PlayerView) => Partial<PlayerView>) =>
 				SubscriptionRef.update(
@@ -168,10 +199,10 @@ export class Playback extends Context.Service<Playback>()(
 				const playback = yield* spotify.playbackState.pipe(
 					Effect.catch(() => Effect.succeedNone),
 				);
-				yield* Ref.set(
-					lastDeviceId,
-					Option.flatMap(playback, (p) => Option.fromNullOr(p.deviceId)),
+				const deviceId = Option.flatMap(playback, (p) =>
+					Option.fromNullOr(p.deviceId),
 				);
+				if (Option.isSome(deviceId)) yield* rememberDevice(deviceId.value);
 				yield* update(() => ({ playback }));
 				return playback;
 			});
@@ -220,7 +251,10 @@ export class Playback extends Context.Service<Playback>()(
 			});
 
 			const startPlaylist = Effect.fn("Playback.startPlaylist")(
-				function* (playlist: Playlist) {
+				function* (playlist: Playlist, remember = true) {
+					if (remember) {
+						yield* saveMusic(() => ({ focusPlaylist: Option.some(playlist) }));
+					}
 					yield* update(() => ({
 						selected: Option.some(playlist),
 						playingIntent: true,
@@ -247,6 +281,18 @@ export class Playback extends Context.Service<Playback>()(
 				),
 			);
 
+			const pauseMusic = Effect.gen(function* () {
+				yield* update(() => ({ playingIntent: false }));
+				yield* spotify.pause.pipe(Effect.ignore);
+				yield* refresh();
+			}).pipe(Effect.withSpan("Playback.pause"));
+
+			const resumeMusic = Effect.gen(function* () {
+				yield* update(() => ({ playingIntent: true }));
+				yield* spotify.resume.pipe(Effect.ignore);
+				yield* refresh();
+			}).pipe(Effect.withSpan("Playback.resume"));
+
 			const toggle = Effect.fn("Playback.toggle")(function* () {
 				const current = yield* SubscriptionRef.get(view);
 				if (current.isPlaying) {
@@ -255,8 +301,80 @@ export class Playback extends Context.Service<Playback>()(
 					yield* refresh();
 				} else if (Option.isSome(current.selected)) {
 					yield* startPlaylist(current.selected.value);
+				} else if (Option.isSome(current.playback)) {
+					yield* resumeMusic;
 				}
 			});
+
+			const fadeTo = Effect.fn("Playback.fadeTo")(function* (target: number) {
+				const playback = yield* refresh();
+				const from = Option.getOrElse(
+					Option.flatMap(playback, (p) => Option.fromNullOr(p.volumePercent)),
+					() => target,
+				);
+				const steps = 5;
+				for (let step = 1; step <= steps; step++) {
+					yield* spotify
+						.setVolume(from + ((target - from) * step) / steps)
+						.pipe(Effect.ignore);
+					if (step < steps) yield* Effect.sleep("300 millis");
+				}
+				return from;
+			});
+
+			const selectDevice = Effect.fn("Playback.selectDevice")(
+				function* (deviceId: string) {
+					const current = yield* SubscriptionRef.get(view);
+					yield* spotify.transfer(deviceId, current.isPlaying);
+					yield* rememberDevice(deviceId);
+					yield* Effect.sleep("500 millis");
+					yield* refresh();
+				},
+				Effect.catch((error) =>
+					update(() => ({ error: Option.some(playErrorMessage(error)) })),
+				),
+			);
+
+			const skipTrack = (direction: "next" | "previous") =>
+				spotify[direction].pipe(
+					Effect.ignore,
+					Effect.andThen(Effect.sleep("400 millis")),
+					Effect.andThen(refresh()),
+					Effect.asVoid,
+				);
+
+			const setVolume = (percent: number) =>
+				spotify.setVolume(percent).pipe(
+					Effect.ignore,
+					Effect.andThen(
+						update((current) => ({
+							playback: Option.map(
+								current.playback,
+								(p) => new PlaybackState({ ...p, volumePercent: percent }),
+							),
+						})),
+					),
+				);
+
+			const togglePin = (playlistId: string) =>
+				saveMusic((current) => ({
+					pinned: current.pinned.includes(playlistId)
+						? current.pinned.filter((id) => id !== playlistId)
+						: [...current.pinned, playlistId],
+				}));
+
+			yield* refresh().pipe(
+				Effect.when(
+					Effect.sync(
+						() =>
+							Predicate.hasProperty(globalThis, "document") &&
+							document.visibilityState === "visible",
+					),
+				),
+				Effect.repeat(Schedule.spaced("5 seconds")),
+				Effect.delay("5 seconds"),
+				Effect.forkIn(scope),
+			);
 
 			const showError = (message: string) =>
 				update(() => ({ error: Option.some(message) }));
@@ -281,6 +399,14 @@ export class Playback extends Context.Service<Playback>()(
 				refresh,
 				startPlaylist,
 				toggle,
+				pauseMusic,
+				resumeMusic,
+				fadeTo,
+				selectDevice,
+				next: skipTrack("next"),
+				previous: skipTrack("previous"),
+				setVolume,
+				togglePin,
 				showError,
 				clearError: update(() => ({ error: Option.none() })),
 				clearTabTookOver,

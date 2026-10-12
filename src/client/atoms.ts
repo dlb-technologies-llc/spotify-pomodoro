@@ -249,6 +249,66 @@ export const startPlaylistAtom = runtime.fn((playlist: Playlist) =>
 );
 
 /**
+ * Spotify devices on the account; refresh to reload.
+ *
+ * @since 2.1.0
+ * @category Spotify
+ */
+export const devicesAtom = runtime.atom(
+	SpotifyClient.use((client) => client.devices),
+);
+
+/**
+ * Moves playback to a device and remembers it.
+ *
+ * @since 2.1.0
+ * @category Spotify
+ */
+export const selectDeviceAtom = runtime.fn((deviceId: string) =>
+	Playback.use((playback) => playback.selectDevice(deviceId)),
+);
+
+/**
+ * Skips to the next track.
+ *
+ * @since 2.1.0
+ * @category Spotify
+ */
+export const nextTrackAtom = runtime.fn(() =>
+	Playback.use((playback) => playback.next),
+);
+
+/**
+ * Goes back to the previous track.
+ *
+ * @since 2.1.0
+ * @category Spotify
+ */
+export const previousTrackAtom = runtime.fn(() =>
+	Playback.use((playback) => playback.previous),
+);
+
+/**
+ * Sets the Spotify volume, in percent.
+ *
+ * @since 2.1.0
+ * @category Spotify
+ */
+export const setVolumeAtom = runtime.fn((percent: number) =>
+	Playback.use((playback) => playback.setVolume(percent)),
+);
+
+/**
+ * Pins or unpins a playlist at the top of the picker.
+ *
+ * @since 2.1.0
+ * @category Spotify
+ */
+export const togglePinAtom = runtime.fn((playlistId: string) =>
+	Playback.use((playback) => playback.togglePin(playlistId)),
+);
+
+/**
  * Pauses, or resumes the selected playlist.
  *
  * @since 2.0.0

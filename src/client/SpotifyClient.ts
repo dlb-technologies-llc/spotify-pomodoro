@@ -11,6 +11,7 @@ import {
 } from "effect/http";
 import {
 	NoActiveDevice,
+	NowPlaying,
 	PlaybackState,
 	Playlist,
 	type PlayRequest,
@@ -33,6 +34,14 @@ import { SpotifyAuth } from "./SpotifyAuth";
  * @category Config
  */
 export const SPOTIFY_API_URL = "https://api.spotify.com/v1";
+
+/**
+ * Upper bound on playlist pages fetched (50 per page).
+ *
+ * @since 2.1.0
+ * @category Config
+ */
+export const MAX_PLAYLIST_PAGES = 20;
 
 const decodeErrorBody = Schema.decodeUnknownOption(
 	Schema.fromJsonString(SpotifyErrorBody),
@@ -121,28 +130,33 @@ export class SpotifyClient extends Context.Service<SpotifyClient>()(
 				Effect.withSpan("SpotifyClient.profile"),
 			);
 
-			const playlists = send(
-				HttpClientRequest.get(`${SPOTIFY_API_URL}/me/playlists`).pipe(
-					HttpClientRequest.setUrlParam("limit", "50"),
-				),
-			).pipe(
-				Effect.flatMap(decode(SpotifyPlaylistsPage)),
-				Effect.map((page) =>
-					page.items.flatMap((item) =>
-						item === null
-							? []
-							: [
-									new Playlist({
-										id: item.id,
-										name: item.name,
-										uri: item.uri,
-										imageUrl: item.images?.[0]?.url ?? null,
-									}),
-								],
-					),
-				),
-				Effect.withSpan("SpotifyClient.playlists"),
-			);
+			const playlistPage = (url: string) =>
+				send(HttpClientRequest.get(url)).pipe(
+					Effect.flatMap(decode(SpotifyPlaylistsPage)),
+				);
+
+			const playlists = Effect.gen(function* () {
+				const all: Array<Playlist> = [];
+				let url: string | null | undefined =
+					`${SPOTIFY_API_URL}/me/playlists?limit=50`;
+				for (let page = 0; url && page < MAX_PLAYLIST_PAGES; page++) {
+					const body: typeof SpotifyPlaylistsPage.Type =
+						yield* playlistPage(url);
+					for (const item of body.items) {
+						if (item === null) continue;
+						all.push(
+							new Playlist({
+								id: item.id,
+								name: item.name,
+								uri: item.uri,
+								imageUrl: item.images?.[0]?.url ?? null,
+							}),
+						);
+					}
+					url = body.next;
+				}
+				return all;
+			}).pipe(Effect.withSpan("SpotifyClient.playlists"));
 
 			const playbackState = send(
 				HttpClientRequest.get(`${SPOTIFY_API_URL}/me/player`),
@@ -158,6 +172,22 @@ export class SpotifyClient extends Context.Service<SpotifyClient>()(
 											deviceId: body.device?.id ?? null,
 											deviceName: body.device?.name ?? null,
 											contextUri: body.context?.uri ?? null,
+											volumePercent: body.device?.volume_percent ?? null,
+											track: body.item
+												? new NowPlaying({
+														title: body.item.name,
+														artist:
+															body.item.artists
+																?.map((a) => a.name)
+																.join(", ") ||
+															body.item.show?.name ||
+															null,
+														imageUrl:
+															body.item.album?.images?.[0]?.url ??
+															body.item.show?.images?.[0]?.url ??
+															null,
+													})
+												: null,
 										}),
 									),
 								),
@@ -224,10 +254,28 @@ export class SpotifyClient extends Context.Service<SpotifyClient>()(
 					command("setShuffle", "shuffle", { state: String(state) }),
 				setRepeat: (state: RepeatMode) =>
 					command("setRepeat", "repeat", { state }),
-				transfer: (deviceId: string) =>
+				resume: send(
+					HttpClientRequest.put(`${SPOTIFY_API_URL}/me/player/play`),
+				).pipe(Effect.asVoid, Effect.withSpan("SpotifyClient.resume")),
+				setVolume: (percent: number) =>
+					command("setVolume", "volume", {
+						volume_percent: String(
+							Math.round(Math.min(100, Math.max(0, percent))),
+						),
+					}),
+				next: send(
+					HttpClientRequest.post(`${SPOTIFY_API_URL}/me/player/next`),
+				).pipe(Effect.asVoid, Effect.withSpan("SpotifyClient.next")),
+				previous: send(
+					HttpClientRequest.post(`${SPOTIFY_API_URL}/me/player/previous`),
+				).pipe(Effect.asVoid, Effect.withSpan("SpotifyClient.previous")),
+				transfer: (deviceId: string, startPlaying: boolean) =>
 					send(
 						HttpClientRequest.put(`${SPOTIFY_API_URL}/me/player`).pipe(
-							HttpClientRequest.bodyJsonUnsafe({ device_ids: [deviceId] }),
+							HttpClientRequest.bodyJsonUnsafe({
+								device_ids: [deviceId],
+								play: startPlaying,
+							}),
 						),
 					).pipe(Effect.asVoid, Effect.withSpan("SpotifyClient.transfer")),
 			};

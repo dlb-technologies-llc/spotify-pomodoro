@@ -135,6 +135,18 @@ export const DeviceSource = Schema.Literals(["browser", "remote"]);
 export type DeviceSource = typeof DeviceSource.Type;
 
 /**
+ * The track or episode playing.
+ *
+ * @since 2.1.0
+ * @category Schemas
+ */
+export class NowPlaying extends Schema.Class<NowPlaying>("NowPlaying")({
+	title: Schema.String,
+	artist: Schema.NullOr(Schema.String),
+	imageUrl: Schema.NullOr(Schema.String),
+}) {}
+
+/**
  * Current Spotify playback.
  *
  * @since 0.0.1
@@ -146,6 +158,8 @@ export class PlaybackState extends Schema.Class<PlaybackState>("PlaybackState")(
 		deviceId: Schema.NullOr(Schema.String),
 		deviceName: Schema.NullOr(Schema.String),
 		contextUri: Schema.NullOr(Schema.String),
+		volumePercent: Schema.NullOr(Schema.Number),
+		track: Schema.NullOr(NowPlaying),
 	},
 ) {
 	/**
@@ -191,6 +205,7 @@ export class PlayRequest extends Schema.Class<PlayRequest>("PlayRequest")({
  * @category Wire
  */
 export const SpotifyPlaylistsPage = Schema.Struct({
+	next: Schema.optional(Schema.NullOr(Schema.String)),
 	items: Schema.Array(
 		Schema.NullOr(
 			Schema.Struct({
@@ -218,11 +233,37 @@ export const SpotifyPlaybackResponse = Schema.Struct({
 			Schema.Struct({
 				id: Schema.NullOr(Schema.String),
 				name: Schema.String,
+				volume_percent: Schema.optional(Schema.NullOr(Schema.Number)),
 			}),
 		),
 	),
 	context: Schema.optional(
 		Schema.NullOr(Schema.Struct({ uri: Schema.String })),
+	),
+	item: Schema.optional(
+		Schema.NullOr(
+			Schema.Struct({
+				name: Schema.String,
+				artists: Schema.optional(
+					Schema.Array(Schema.Struct({ name: Schema.String })),
+				),
+				album: Schema.optional(
+					Schema.Struct({
+						images: Schema.optional(
+							Schema.Array(Schema.Struct({ url: Schema.String })),
+						),
+					}),
+				),
+				show: Schema.optional(
+					Schema.Struct({
+						name: Schema.String,
+						images: Schema.optional(
+							Schema.Array(Schema.Struct({ url: Schema.String })),
+						),
+					}),
+				),
+			}),
+		),
 	),
 });
 
