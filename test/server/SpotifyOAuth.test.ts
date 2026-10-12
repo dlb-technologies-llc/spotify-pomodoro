@@ -218,6 +218,29 @@ describe("Spotify OAuth", () => {
 	);
 });
 
+describe("Spotify outages", () => {
+	it.effect(
+		"refresh reports an outage as retryable, not as a revoked token",
+		() =>
+			Effect.gen(function* () {
+				for (const upstream of [
+					accounts(() => new Response("upstream down", { status: 503 })),
+					() => Promise.reject(new Error("network unreachable")),
+				]) {
+					const handler = yield* startServer({ upstream });
+					const response = yield* send(handler, "/api/spotify/refresh", {
+						method: "POST",
+						headers: { "content-type": "application/json" },
+						body: JSON.stringify({ refreshToken: "still-valid" }),
+					});
+					assert.strictEqual(response.status, 503);
+					const body = yield* Effect.promise(() => response.json());
+					assert.strictEqual(body._tag, "SpotifyUnavailable");
+				}
+			}),
+	);
+});
+
 describe("telemetry relay", () => {
 	it.effect("accepts traces and drops them without a collector", () =>
 		Effect.gen(function* () {

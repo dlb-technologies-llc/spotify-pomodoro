@@ -4,10 +4,16 @@
  * @module
  */
 import { Effect, Layer } from "effect";
-import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
+import {
+	HttpClient,
+	HttpClientError,
+	HttpClientRequest,
+	HttpClientResponse,
+} from "effect/http";
 
 /**
- * An `HttpClient` whose requests are answered by a Fetch-style handler.
+ * An `HttpClient` whose requests are answered by a Fetch-style handler. A
+ * rejected handler becomes a transport error, as with real `fetch`.
  *
  * @since 2.0.0
  * @category Test
@@ -19,9 +25,17 @@ export const httpClientFrom = (
 		HttpClient.HttpClient,
 		HttpClient.make((request) =>
 			HttpClientRequest.toWeb(request).pipe(
-				Effect.flatMap((web) => Effect.promise(async () => handler(web))),
-				Effect.map((response) => HttpClientResponse.fromWeb(request, response)),
 				Effect.orDie,
+				Effect.flatMap((web) =>
+					Effect.tryPromise({
+						try: async () => handler(web),
+						catch: (cause) =>
+							new HttpClientError.HttpClientError({
+								reason: new HttpClientError.TransportError({ request, cause }),
+							}),
+					}),
+				),
+				Effect.map((response) => HttpClientResponse.fromWeb(request, response)),
 			),
 		),
 	);

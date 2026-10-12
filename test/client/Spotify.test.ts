@@ -302,4 +302,93 @@ describe("SpotifyAuth", () => {
 			}).pipe(Effect.provide(layer));
 		}),
 	);
+
+	it.effect("keeps the token through a Spotify outage", () =>
+		Effect.gen(function* () {
+			const stale = new SpotifyToken({ ...(yield* freshToken), expiresAt: 0 });
+			const { layer } = yield* spotifyLayers({
+				token: Option.some(stale),
+				accounts: () => new Response("down", { status: 503 }),
+				spotify: noSpotify,
+			});
+			yield* Effect.gen(function* () {
+				const error = yield* Effect.flip(SpotifyClient.use((c) => c.playlists));
+				assert.strictEqual(error._tag, "SpotifyUnavailable");
+				assert.isTrue(yield* (yield* SpotifyAuth).isConnected);
+				const store = KeyValueStore.toSchemaStore(
+					yield* KeyValueStore.KeyValueStore,
+					SpotifyToken,
+				);
+				assert.isTrue(Option.isSome(yield* store.get(TOKEN_STORAGE_KEY)));
+			}).pipe(Effect.provide(layer));
+		}),
+	);
+
+	it.effect(
+		"uses a token another tab refreshed instead of refreshing again",
+		() =>
+			Effect.gen(function* () {
+				const stale = new SpotifyToken({
+					...(yield* freshToken),
+					expiresAt: 0,
+				});
+				const rotated = yield* freshToken;
+				let refreshes = 0;
+				const { layer } = yield* spotifyLayers({
+					token: Option.some(stale),
+					accounts: () => {
+						refreshes++;
+						return json({ error: "invalid_grant" }, 400);
+					},
+					spotify: (request) =>
+						request.headers.get("authorization") ===
+						`Bearer ${rotated.accessToken}`
+							? json({ items: [] })
+							: new Response(null, { status: 401 }),
+				});
+				yield* Effect.gen(function* () {
+					const auth = yield* SpotifyAuth;
+					const store = KeyValueStore.toSchemaStore(
+						yield* KeyValueStore.KeyValueStore,
+						SpotifyToken,
+					);
+					yield* store.set(TOKEN_STORAGE_KEY, rotated);
+					yield* SpotifyClient.use((c) => c.playlists);
+					assert.strictEqual(refreshes, 0);
+					assert.isTrue(yield* auth.isConnected);
+				}).pipe(Effect.provide(layer));
+			}),
+	);
+
+	it.effect("does not delete a token another tab stored while refreshing", () =>
+		Effect.gen(function* () {
+			const stale = new SpotifyToken({ ...(yield* freshToken), expiresAt: 0 });
+			const rotated = new SpotifyToken({
+				...(yield* freshToken),
+				expiresAt: 0,
+			});
+			const { layer } = yield* spotifyLayers({
+				token: Option.some(stale),
+				accounts: () => json({ error: "invalid_grant" }, 400),
+				spotify: noSpotify,
+			});
+			yield* Effect.gen(function* () {
+				const store = KeyValueStore.toSchemaStore(
+					yield* KeyValueStore.KeyValueStore,
+					SpotifyToken,
+				);
+				yield* SpotifyAuth;
+				yield* store.set(
+					TOKEN_STORAGE_KEY,
+					new SpotifyToken({ ...rotated, expiresAt: stale.expiresAt }),
+				);
+				yield* Effect.flip(SpotifyClient.use((c) => c.playlists));
+				const saved = yield* store.get(TOKEN_STORAGE_KEY);
+				assert.deepStrictEqual(
+					Option.map(saved, (t) => t.refreshToken),
+					Option.some(rotated.refreshToken),
+				);
+			}).pipe(Effect.provide(layer));
+		}),
+	);
 });

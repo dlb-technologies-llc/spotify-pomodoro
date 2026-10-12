@@ -37,6 +37,7 @@ import {
 	RefreshTokenRequest,
 	SpotifyNotConnected,
 	SpotifyToken,
+	SpotifyUnavailable,
 } from "../domain/Spotify";
 import { SessionStats, StatsQuery } from "../domain/Stats";
 
@@ -124,7 +125,7 @@ export class SpotifyApi extends HttpApiGroup.make("spotify")
 		HttpApiEndpoint.post("refresh", "/api/spotify/refresh", {
 			payload: RefreshTokenRequest,
 			success: SpotifyToken,
-			error: SpotifyNotConnected,
+			error: [SpotifyNotConnected, SpotifyUnavailable],
 		}),
 	)
 	.middleware(Authorization) {}

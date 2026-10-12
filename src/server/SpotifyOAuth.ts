@@ -20,6 +20,7 @@ import {
 	SpotifyNotConnected,
 	SpotifyToken,
 	SpotifyTokenResponse,
+	SpotifyUnavailable,
 } from "@/shared/domain/Spotify";
 import { ServerConfig } from "./ServerConfig";
 
@@ -91,28 +92,35 @@ export class SpotifyOAuth extends Context.Service<SpotifyOAuth>()(
 	{
 		make: Effect.gen(function* () {
 			const config = yield* ServerConfig;
-			const client = (yield* HttpClient.HttpClient).pipe(
-				HttpClient.filterStatusOk,
-			);
+			const client = yield* HttpClient.HttpClient;
+			const unavailable = () =>
+				new SpotifyUnavailable({ message: "Spotify Accounts is unreachable" });
 
 			const requestToken = Effect.fn("SpotifyOAuth.requestToken")(function* (
 				params: Record<string, string>,
 				fallbackRefreshToken: string,
 			) {
-				const response = yield* client.execute(
-					HttpClientRequest.post(`${SPOTIFY_ACCOUNTS_URL}/api/token`).pipe(
-						HttpClientRequest.setBody(
-							HttpBody.urlParams({
-								...params,
-								client_id: config.spotifyClientId,
-							}),
+				const response = yield* client
+					.execute(
+						HttpClientRequest.post(`${SPOTIFY_ACCOUNTS_URL}/api/token`).pipe(
+							HttpClientRequest.setBody(
+								HttpBody.urlParams({
+									...params,
+									client_id: config.spotifyClientId,
+								}),
+							),
 						),
-					),
-				);
-				const body =
-					yield* HttpClientResponse.schemaBodyJson(SpotifyTokenResponse)(
-						response,
-					);
+					)
+					.pipe(Effect.mapError(unavailable));
+				if (response.status === 400 || response.status === 401) {
+					return yield* new SpotifyNotConnected({
+						message: "Spotify rejected the grant",
+					});
+				}
+				if (response.status >= 300) return yield* unavailable();
+				const body = yield* HttpClientResponse.schemaBodyJson(
+					SpotifyTokenResponse,
+				)(response).pipe(Effect.mapError(unavailable));
 				const now = yield* Clock.currentTimeMillis;
 				return new SpotifyToken({
 					accessToken: body.access_token,
@@ -180,15 +188,7 @@ export class SpotifyOAuth extends Context.Service<SpotifyOAuth>()(
 				return yield* requestToken(
 					{ grant_type: "refresh_token", refresh_token: refreshToken },
 					refreshToken,
-				).pipe(
-					Effect.tapCause(Effect.logWarning),
-					Effect.mapError(
-						() =>
-							new SpotifyNotConnected({
-								message: "Spotify rejected the refresh token",
-							}),
-					),
-				);
+				).pipe(Effect.tapCause(Effect.logWarning));
 			});
 
 			return { authorize, exchange, refresh };

@@ -85,6 +85,8 @@ const playErrorMessage = (error: { readonly _tag: string }) => {
 			return "Browser player unavailable. Open Spotify on your phone or computer.";
 		case "SpotifyNotConnected":
 			return "Spotify session expired, reconnect Spotify";
+		case "SpotifyUnavailable":
+			return "Spotify is unreachable right now, try again in a moment";
 		default:
 			return "Open Spotify on your phone or computer first";
 	}
@@ -146,12 +148,9 @@ export class Playback extends Context.Service<Playback>()(
 				const playback = yield* spotify.playbackState.pipe(
 					Effect.catch(() => Effect.succeedNone),
 				);
-				yield* Option.match(
+				yield* Ref.set(
+					lastDeviceId,
 					Option.flatMap(playback, (p) => Option.fromNullOr(p.deviceId)),
-					{
-						onNone: () => Effect.void,
-						onSome: (id) => Ref.set(lastDeviceId, Option.some(id)),
-					},
 				);
 				yield* update(() => ({ playback }));
 				return playback;
@@ -160,25 +159,31 @@ export class Playback extends Context.Service<Playback>()(
 			const playOnAnyDevice = Effect.fn("Playback.playOnAnyDevice")(function* (
 				contextUri: string,
 			) {
-				const deviceId = yield* Ref.get(lastDeviceId);
-				yield* spotify
-					.play(
+				const saved = yield* Ref.get(lastDeviceId);
+				const playOn = (deviceId: Option.Option<string>) =>
+					spotify.play(
 						new PlayRequest({
 							contextUri,
 							deviceId: Option.getOrUndefined(deviceId),
 						}),
-					)
-					.pipe(
-						Effect.catchTag("NoActiveDevice", () =>
-							sdk.ensureDevice.pipe(
-								Effect.flatMap((sdkDeviceId) =>
-									spotify.play(
-										new PlayRequest({ contextUri, deviceId: sdkDeviceId }),
-									),
-								),
-							),
-						),
 					);
+				yield* playOn(saved).pipe(
+					Effect.catchIf(
+						(error) =>
+							Option.isSome(saved) &&
+							error._tag === "SpotifyApiError" &&
+							error.status === 404,
+						() =>
+							Ref.set(lastDeviceId, Option.none()).pipe(
+								Effect.andThen(playOn(Option.none())),
+							),
+					),
+					Effect.catchTag("NoActiveDevice", () =>
+						sdk.ensureDevice.pipe(
+							Effect.flatMap((sdkDeviceId) => playOn(Option.some(sdkDeviceId))),
+						),
+					),
+				);
 			});
 
 			const startPlaylist = Effect.fn("Playback.startPlaylist")(

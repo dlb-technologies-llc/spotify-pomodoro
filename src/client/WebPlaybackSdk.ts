@@ -4,7 +4,7 @@
  *
  * @module
  */
-import { Context, Effect, Layer, Option, Ref } from "effect";
+import { Context, Effect, Layer, Option, Ref, Semaphore } from "effect";
 import {
 	BROWSER_DEVICE_NAME,
 	PremiumRequired,
@@ -64,9 +64,11 @@ const connect = (player: SpotifyPlayer) =>
 /**
  * Creates the in-browser Spotify player when playback has no active device.
  *
- * The device is dropped when Spotify reports it not ready, for example after
- * another tab claims playback. Spotify needs a moment after `ready` before the
- * Web API accepts the new device, so creation waits briefly.
+ * Calls are serialized so only one player exists. When Spotify reports the
+ * device not ready (for example after another tab claims playback), the old
+ * player is disconnected and replaced on the next call. Spotify needs a moment
+ * after `ready` before the Web API accepts the new device, so creation waits
+ * briefly; a player that never becomes ready fails after 15 seconds.
  *
  * @since 1.3.0
  * @category Services
@@ -77,12 +79,20 @@ export class WebPlaybackSdk extends Context.Service<WebPlaybackSdk>()(
 		make: Effect.gen(function* () {
 			const auth = yield* SpotifyAuth;
 			const context = yield* Effect.context<never>();
+			const lock = yield* Semaphore.make(1);
 			const device = yield* Ref.make(
 				Option.none<{
 					readonly player: SpotifyPlayer;
 					readonly deviceId: string;
+					readonly ready: boolean;
 				}>(),
 			);
+
+			const release = (player: SpotifyPlayer) =>
+				Effect.sync(() => {
+					player.removeListener("not_ready");
+					player.disconnect();
+				});
 
 			const create = Effect.gen(function* () {
 				yield* loadScript;
@@ -95,31 +105,50 @@ export class WebPlaybackSdk extends Context.Service<WebPlaybackSdk>()(
 						).then(callback);
 					},
 				});
-				const deviceId = yield* connect(player);
+				const deviceId = yield* connect(player).pipe(
+					Effect.timeoutOrElse({
+						duration: "15 seconds",
+						orElse: () =>
+							Effect.fail(
+								new SdkUnavailable({
+									reason: "InitFailed",
+									message: "The Spotify player did not become ready",
+								}),
+							),
+					}),
+					Effect.onError(() => release(player)),
+				);
 				player.addListener("not_ready", () => {
-					Effect.runSync(Ref.set(device, Option.none()));
+					Effect.runSync(
+						Ref.set(device, Option.some({ player, deviceId, ready: false })),
+					);
 				});
-				yield* Ref.set(device, Option.some({ player, deviceId }));
+				yield* Ref.set(device, Option.some({ player, deviceId, ready: true }));
 				yield* Effect.logInfo("Web Playback SDK ready", { deviceId });
 				yield* Effect.sleep("500 millis");
 				return deviceId;
 			});
 
-			const ensureDevice = Effect.gen(function* () {
-				const current = yield* Ref.get(device);
-				return Option.isSome(current) ? current.value.deviceId : yield* create;
-			}).pipe(Effect.withSpan("WebPlaybackSdk.ensureDevice"));
+			const ensureDevice = lock
+				.withPermits(1)(
+					Effect.gen(function* () {
+						const current = yield* Ref.get(device);
+						if (Option.isSome(current)) {
+							if (current.value.ready) return current.value.deviceId;
+							yield* release(current.value.player);
+							yield* Ref.set(device, Option.none());
+						}
+						return yield* create;
+					}),
+				)
+				.pipe(Effect.withSpan("WebPlaybackSdk.ensureDevice"));
 
 			yield* Effect.addFinalizer(() =>
 				Ref.get(device).pipe(
 					Effect.flatMap(
 						Option.match({
 							onNone: () => Effect.void,
-							onSome: ({ player }) =>
-								Effect.sync(() => {
-									player.removeListener("not_ready");
-									player.disconnect();
-								}),
+							onSome: ({ player }) => release(player),
 						}),
 					),
 				),

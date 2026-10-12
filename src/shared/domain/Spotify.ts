@@ -264,6 +264,18 @@ export class SpotifyNotConnected extends Schema.TaggedError<SpotifyNotConnected>
 ) {}
 
 /**
+ * Spotify could not be reached or answered with a server error; retry later.
+ *
+ * @since 2.0.0
+ * @category Errors
+ */
+export class SpotifyUnavailable extends Schema.TaggedError<SpotifyUnavailable>()(
+	"SpotifyUnavailable",
+	{ message: Schema.String },
+	{ httpApiStatus: 503 },
+) {}
+
+/**
  * A Spotify Web API call failed.
  *
  * @since 0.0.1

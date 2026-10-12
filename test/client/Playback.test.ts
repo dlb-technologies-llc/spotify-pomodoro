@@ -123,6 +123,44 @@ describe("Playback", () => {
 		}),
 	);
 
+	it.effect("retries without a stale device before giving up on it", () =>
+		Effect.gen(function* () {
+			const playlist = yield* sample(Playlist);
+			const remote = new PlaybackState({
+				isPlaying: false,
+				deviceId: "gone-phone",
+				deviceName: "Phone",
+				contextUri: null,
+			});
+			const { calls } = yield* run(
+				Effect.gen(function* () {
+					const playback = yield* Playback;
+					yield* playback.refresh();
+					yield* playback.startPlaylist(playlist);
+					return yield* view;
+				}),
+				{
+					playback: Option.some(remote),
+					play: (request) =>
+						request.deviceId === "gone-phone"
+							? Effect.fail(
+									new SpotifyApiError({
+										status: 404,
+										message: "Device not found",
+									}),
+								)
+							: request.deviceId === undefined
+								? Effect.fail(new NoActiveDevice({ message: "none" }))
+								: Effect.void,
+				},
+			);
+			assert.deepStrictEqual(
+				calls.filter((c) => c.name === "play").map((c) => c.request?.deviceId),
+				["gone-phone", undefined, "sdk-device"],
+			);
+		}),
+	);
+
 	it.effect("explains why playback could not start", () =>
 		Effect.gen(function* () {
 			const playlist = yield* sample(Playlist);

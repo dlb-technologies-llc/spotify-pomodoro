@@ -15,7 +15,11 @@ import {
 	SubscriptionRef,
 } from "effect";
 import { KeyValueStore } from "effect/persistence";
-import { SpotifyNotConnected, SpotifyToken } from "@/shared/domain/Spotify";
+import {
+	SpotifyNotConnected,
+	SpotifyToken,
+	SpotifyUnavailable,
+} from "@/shared/domain/Spotify";
 import { ApiClient } from "./ApiClient";
 
 /**
@@ -39,6 +43,10 @@ export const decodeRedirectToken = Schema.decodeUnknownOption(
 /**
  * Holds the Spotify token, refreshing it through the server when it is about
  * to expire.
+ *
+ * Storage is re-read before each use so tabs pick up tokens refreshed by
+ * other tabs. The token is only forgotten when Spotify rejects it and no
+ * other tab has replaced it; outages fail with `SpotifyUnavailable`.
  *
  * @since 0.0.1
  * @category Services
@@ -74,18 +82,38 @@ export class SpotifyAuth extends Context.Service<SpotifyAuth>()(
 				message: "Connect Spotify first",
 			});
 
+			const readStored = store
+				.get(TOKEN_STORAGE_KEY)
+				.pipe(Effect.catch(() => Effect.succeedNone));
+
 			const refresh = Effect.fn("SpotifyAuth.refresh")(function* (
 				current: SpotifyToken,
 			) {
 				const refreshed = yield* api.spotify
 					.refresh({ payload: { refreshToken: current.refreshToken } })
 					.pipe(
-						Effect.tapError(() => disconnect()),
-						Effect.mapError(
-							() =>
-								new SpotifyNotConnected({
+						Effect.catchTag("SpotifyNotConnected", () =>
+							Effect.gen(function* () {
+								const latest = yield* readStored;
+								if (
+									Option.isNone(latest) ||
+									latest.value.refreshToken === current.refreshToken
+								) {
+									yield* disconnect();
+								}
+								return yield* new SpotifyNotConnected({
 									message: "Spotify session expired, reconnect Spotify",
-								}),
+								});
+							}),
+						),
+						Effect.catchIf(
+							(error) => error._tag !== "SpotifyNotConnected",
+							() =>
+								Effect.fail(
+									new SpotifyUnavailable({
+										message: "Spotify is unreachable right now",
+									}),
+								),
 						),
 					);
 				yield* save(refreshed);
@@ -95,7 +123,16 @@ export class SpotifyAuth extends Context.Service<SpotifyAuth>()(
 			const accessToken = refreshLock
 				.withPermits(1)(
 					Effect.gen(function* () {
-						const current = yield* SubscriptionRef.get(token);
+						const inMemory = yield* SubscriptionRef.get(token);
+						const latest = yield* readStored;
+						const newer =
+							Option.isSome(latest) &&
+							Option.match(inMemory, {
+								onNone: () => true,
+								onSome: (held) => latest.value.expiresAt > held.expiresAt,
+							});
+						if (newer) yield* SubscriptionRef.set(token, latest);
+						const current = newer ? latest : inMemory;
 						if (Option.isNone(current)) return yield* notConnected;
 						const now = yield* Clock.currentTimeMillis;
 						const valid = current.value.isExpiredAt(now)

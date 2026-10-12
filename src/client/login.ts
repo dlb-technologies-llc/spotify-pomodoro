@@ -13,16 +13,28 @@ const runtime = Atom.runtime(
 	ApiClient.layer.pipe(Layer.provide(FetchHttpClient.layer)),
 );
 
+const ORIGIN = "https://pomodoro.invalid";
+
 /**
  * Same-origin path to continue to after login; anything else becomes `/`.
+ *
+ * The value is parsed the way the browser will parse it, so tricks like
+ * `/\t/evil.example` (tabs are stripped, leaving `//evil.example`) are caught.
  *
  * @since 2.0.0
  * @category Helpers
  */
-export const safeReturnPath = (value: string | null | undefined): string =>
-	value?.startsWith("/") && !value.startsWith("//") && !value.startsWith("/\\")
-		? value
-		: "/";
+export const safeReturnPath = (value: string | null | undefined): string => {
+	if (!value?.startsWith("/")) return "/";
+	try {
+		const url = new URL(value, ORIGIN);
+		return url.origin === ORIGIN
+			? `${url.pathname}${url.search}${url.hash}`
+			: "/";
+	} catch {
+		return "/";
+	}
+};
 
 /**
  * Message shown for a failed login.

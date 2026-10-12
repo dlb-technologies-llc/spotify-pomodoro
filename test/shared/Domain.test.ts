@@ -86,11 +86,7 @@ describe("login", () => {
 		[Schema.String],
 		([value]) => {
 			const path = safeReturnPath(value);
-			return (
-				path.startsWith("/") &&
-				!path.startsWith("//") &&
-				!path.startsWith("/\\")
-			);
+			return new URL(path, "https://app.test").origin === "https://app.test";
 		},
 	);
 
@@ -100,6 +96,8 @@ describe("login", () => {
 		assert.strictEqual(safeReturnPath("https://evil.example"), "/");
 		assert.strictEqual(safeReturnPath("//evil.example"), "/");
 		assert.strictEqual(safeReturnPath("/\\evil.example"), "/");
+		assert.strictEqual(safeReturnPath("/\t/evil.example"), "/");
+		assert.strictEqual(safeReturnPath("/\n/evil.example"), "/");
 	});
 
 	it("explains login failures", () => {
