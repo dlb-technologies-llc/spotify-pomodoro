@@ -69,6 +69,8 @@ jobs:
       options: --ipc=host
     steps:
       - uses: actions/checkout@v7
+      - name: Install unzip for setup-bun
+        run: apt-get update -qq && apt-get install -y -qq unzip >/dev/null
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
