@@ -4,19 +4,25 @@
  * @module
  */
 import { Context, Effect, Layer, Option, Ref, Semaphore } from "effect";
-import type {
-	BreakSessionId,
-	FocusSessionId,
-	PomodoroId,
-} from "@/shared/domain/Session";
+import { KeyValueStore } from "effect/persistence";
+import { RecordingIds } from "@/shared/domain/Session";
 import type { TimerPhase } from "@/shared/domain/Timer";
 import { ApiClient } from "./ApiClient";
+
+/**
+ * Storage key for the ids being recorded.
+ *
+ * @since 2.1.0
+ * @category Config
+ */
+export const RECORDING_STORAGE_KEY = "pomodoro_recording";
 
 /**
  * Tracks the pomodoro and session currently being recorded.
  *
  * Calls run one at a time in the order made. A failed call is logged and
- * skipped so recording problems never block the timer.
+ * skipped so recording problems never block the timer. The ids are saved, so
+ * a session started before a reload is still completed after it.
  *
  * @since 2.0.0
  * @category Services
@@ -27,9 +33,23 @@ export class SessionRecorder extends Context.Service<SessionRecorder>()(
 		make: Effect.gen(function* () {
 			const api = yield* ApiClient;
 			const lock = yield* Semaphore.make(1);
-			const pomodoro = yield* Ref.make(Option.none<PomodoroId>());
-			const focus = yield* Ref.make(Option.none<FocusSessionId>());
-			const breakSession = yield* Ref.make(Option.none<BreakSessionId>());
+			const store = KeyValueStore.toSchemaStore(
+				yield* KeyValueStore.KeyValueStore,
+				RecordingIds,
+			);
+			const ids = yield* Ref.make(
+				yield* store.get(RECORDING_STORAGE_KEY).pipe(
+					Effect.map(Option.getOrElse(() => RecordingIds.empty)),
+					Effect.catch(() => Effect.succeed(RecordingIds.empty)),
+				),
+			);
+
+			const update = (f: (current: RecordingIds) => RecordingIds) =>
+				Ref.updateAndGet(ids, f).pipe(
+					Effect.flatMap((next) =>
+						store.set(RECORDING_STORAGE_KEY, next).pipe(Effect.ignore),
+					),
+				);
 
 			const attempt = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
 				effect.pipe(
@@ -41,16 +61,16 @@ export class SessionRecorder extends Context.Service<SessionRecorder>()(
 					),
 				);
 
-			const take = <A>(ref: Ref.Ref<Option.Option<A>>) =>
-				Ref.getAndSet(ref, Option.none());
-
 			const startFocus = Effect.fn("SessionRecorder.startFocus")(function* (
 				configuredSeconds: number,
 			) {
 				const created = yield* attempt(api.sessions.createPomodoro());
-				yield* Ref.set(
-					pomodoro,
-					Option.map(created, (p) => p.id),
+				yield* update(
+					() =>
+						new RecordingIds({
+							...RecordingIds.empty,
+							pomodoro: Option.map(created, (p) => p.id),
+						}),
 				);
 				if (Option.isNone(created)) return;
 				const session = yield* attempt(
@@ -58,19 +78,25 @@ export class SessionRecorder extends Context.Service<SessionRecorder>()(
 						payload: { pomodoroId: created.value.id, configuredSeconds },
 					}),
 				);
-				yield* Ref.set(
-					focus,
-					Option.map(session, (s) => s.id),
+				yield* update(
+					(current) =>
+						new RecordingIds({
+							...current,
+							focus: Option.map(session, (s) => s.id),
+						}),
 				);
 			});
 
 			const completeFocus = Effect.fn("SessionRecorder.completeFocus")(
 				function* (elapsedSeconds: number) {
-					const id = yield* take(focus);
-					if (Option.isNone(id)) return;
+					const { focus } = yield* Ref.get(ids);
+					yield* update(
+						(current) => new RecordingIds({ ...current, focus: Option.none() }),
+					);
+					if (Option.isNone(focus)) return;
 					yield* attempt(
 						api.sessions.completeFocus({
-							params: { id: id.value },
+							params: { id: focus.value },
 							payload: { elapsedSeconds },
 						}),
 					);
@@ -80,26 +106,32 @@ export class SessionRecorder extends Context.Service<SessionRecorder>()(
 			const startBreak = Effect.fn("SessionRecorder.startBreak")(function* (
 				configuredSeconds: number,
 			) {
-				const pomodoroId = yield* Ref.get(pomodoro);
-				if (Option.isNone(pomodoroId)) return;
+				const { pomodoro } = yield* Ref.get(ids);
+				if (Option.isNone(pomodoro)) return;
 				const session = yield* attempt(
 					api.sessions.startBreak({
-						payload: { pomodoroId: pomodoroId.value, configuredSeconds },
+						payload: { pomodoroId: pomodoro.value, configuredSeconds },
 					}),
 				);
-				yield* Ref.set(
-					breakSession,
-					Option.map(session, (s) => s.id),
+				yield* update(
+					(current) =>
+						new RecordingIds({
+							...current,
+							break: Option.map(session, (s) => s.id),
+						}),
 				);
 			});
 
 			const completeBreak = Effect.fn("SessionRecorder.completeBreak")(
 				function* (elapsedSeconds: number) {
-					const id = yield* take(breakSession);
-					if (Option.isNone(id)) return;
+					const current = yield* Ref.get(ids);
+					yield* update(
+						(latest) => new RecordingIds({ ...latest, break: Option.none() }),
+					);
+					if (Option.isNone(current.break)) return;
 					yield* attempt(
 						api.sessions.completeBreak({
-							params: { id: id.value },
+							params: { id: current.break.value },
 							payload: { elapsedSeconds },
 						}),
 					);
@@ -108,10 +140,11 @@ export class SessionRecorder extends Context.Service<SessionRecorder>()(
 
 			const completePomodoro = Effect.fn("SessionRecorder.completePomodoro")(
 				function* () {
-					const id = yield* take(pomodoro);
-					if (Option.isNone(id)) return;
+					const { pomodoro } = yield* Ref.get(ids);
+					yield* update(() => RecordingIds.empty);
+					if (Option.isNone(pomodoro)) return;
 					yield* attempt(
-						api.sessions.completePomodoro({ params: { id: id.value } }),
+						api.sessions.completePomodoro({ params: { id: pomodoro.value } }),
 					);
 				},
 			);

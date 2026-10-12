@@ -7,7 +7,7 @@ import { useAtom, useAtomSet, useAtomValue } from "@effect/atom-react";
 import { Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { Globe, Smartphone, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import {
 	clearPlaybackErrorAtom,
 	clearTabTookOverAtom,
@@ -60,10 +60,20 @@ const hint = (state: TimerState) => {
 		: "press space to resume · r to reset · e to end";
 };
 
+const TEXT_ENTRY =
+	"input, textarea, select, [contenteditable=''], [contenteditable='true']";
+const ACTIVATABLE = `${TEXT_ENTRY}, button, a[href], summary, [role='button'], [role='menuitem'], [role='option'], [role='tab']`;
+
+const targetMatches = (target: EventTarget | null, selector: string) =>
+	target instanceof Element && target.closest(selector) !== null;
+
 /**
  * Keyboard shortcuts for the timer.
  *
- * @since 2.0.0
+ * Space and Enter defer to a focused control so buttons and links keep
+ * working; letter shortcuts are ignored while typing or inside a dialog.
+ *
+ * @since 0.0.1
  * @category Hooks
  */
 function useTimerKeys(state: TimerState | undefined) {
@@ -71,33 +81,65 @@ function useTimerKeys(state: TimerState | undefined) {
 	const skip = useAtomSet(skipAtom);
 	const stop = useAtomSet(stopAtom);
 	const reset = useAtomSet(resetAtom);
+	const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
+		if (
+			!state ||
+			event.defaultPrevented ||
+			event.repeat ||
+			event.altKey ||
+			event.ctrlKey ||
+			event.metaKey ||
+			targetMatches(event.target, `${TEXT_ENTRY}, [role='dialog']`)
+		) {
+			return;
+		}
+		const running = state.status === "running";
+		const act = (action: () => void) => {
+			event.preventDefault();
+			action();
+		};
+		switch (event.code) {
+			case "Space":
+			case "Enter":
+				if (targetMatches(event.target, ACTIVATABLE)) return;
+				return !running && act(() => start());
+			case "KeyR":
+				return !running && state.phase !== "idle" && act(() => reset());
+			case "KeyB":
+				return running && state.phase === "focus" && act(() => skip());
+			case "KeyF":
+				return running && state.phase === "break" && act(() => skip());
+			case "KeyE":
+				return state.phase !== "idle" && act(() => stop());
+		}
+	});
 
 	useEffect(() => {
-		if (!state) return;
-		const running = state.status === "running";
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.target instanceof HTMLInputElement) return;
-			const act = (action: () => void) => {
-				event.preventDefault();
-				action();
-			};
-			switch (event.code) {
-				case "Space":
-				case "Enter":
-					return act(() => !running && start());
-				case "KeyR":
-					return !running && state.phase !== "idle" && act(() => reset());
-				case "KeyB":
-					return running && state.phase === "focus" && act(() => skip());
-				case "KeyF":
-					return running && state.phase === "break" && act(() => skip());
-				case "KeyE":
-					return state.phase !== "idle" && act(() => stop());
-			}
-		};
-		window.addEventListener("keydown", onKeyDown);
-		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [state, start, skip, stop, reset]);
+		const listener = (event: KeyboardEvent) => onKeyDown(event);
+		window.addEventListener("keydown", listener);
+		return () => window.removeEventListener("keydown", listener);
+	}, []);
+}
+
+const PHASE_ICON = { idle: "🍅", focus: "🍅", break: "☕" } satisfies Record<
+	TimerState["phase"],
+	string
+>;
+
+/**
+ * Shows the countdown in the browser tab title.
+ *
+ * @since 2.1.0
+ * @category Hooks
+ */
+function useTabTitle(state: TimerState | undefined) {
+	const title =
+		!state || state.phase === "idle"
+			? "Spotify Pomodoro"
+			: `${PHASE_ICON[state.phase]} ${state.displayTime} · ${state.isOvertime ? "overtime" : state.phase}`;
+	useEffect(() => {
+		document.title = title;
+	}, [title]);
 }
 
 /**
@@ -127,6 +169,7 @@ export function App() {
 	const theme = useTheme();
 	const timer = AsyncResult.getOrElse(useAtomValue(timerAtom), () => undefined);
 	useTimerKeys(timer);
+	useTabTitle(timer);
 
 	if (!timer) {
 		return (
@@ -232,7 +275,9 @@ export function App() {
 						</div>
 					</div>
 
-					<span className="text-muted-foreground/40 text-xs tracking-wide">
+					<TimerControls timer={timer} />
+
+					<span className="text-muted-foreground/40 text-xs tracking-wide pointer-coarse:hidden">
 						{hint(timer)}
 					</span>
 
@@ -253,6 +298,67 @@ export function App() {
 
 			<PlaybackNotices />
 		</div>
+	);
+}
+
+/**
+ * Touch-friendly buttons for the actions the keyboard shortcuts trigger.
+ *
+ * @since 2.1.0
+ * @category Components
+ */
+function TimerControls({ timer }: { readonly timer: TimerState }) {
+	const start = useAtomSet(startAtom);
+	const skip = useAtomSet(skipAtom);
+	const stop = useAtomSet(stopAtom);
+	const reset = useAtomSet(resetAtom);
+	const running = timer.status === "running";
+
+	const button = (
+		label: string,
+		shortcut: string,
+		onClick: () => void,
+		primary = false,
+	) => (
+		<button
+			key={label}
+			type="button"
+			onClick={onClick}
+			aria-keyshortcuts={shortcut}
+			className={cn(
+				"min-h-11 min-w-24 px-5 rounded-xl text-sm tracking-wide",
+				"border transition-all duration-200 active:scale-95",
+				"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+				primary
+					? "bg-primary/15 text-primary border-primary/30 hover:bg-primary/25"
+					: "bg-card/50 text-muted-foreground border-border hover:text-foreground hover:bg-card/80",
+			)}
+		>
+			{label}
+		</button>
+	);
+
+	const buttons =
+		timer.phase === "idle"
+			? [button("start", "Space", () => start(), true)]
+			: running
+				? [
+						timer.phase === "focus"
+							? button("take a break", "B", () => skip(), true)
+							: button("back to focus", "F", () => skip(), true),
+						button("end", "E", () => stop()),
+					]
+				: [
+						button("resume", "Space", () => start(), true),
+						button("reset", "R", () => reset()),
+						button("end", "E", () => stop()),
+					];
+
+	return (
+		<fieldset className="flex items-center gap-3 border-0 p-0 m-0 min-w-0">
+			<legend className="sr-only">timer controls</legend>
+			{buttons}
+		</fieldset>
 	);
 }
 

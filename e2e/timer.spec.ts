@@ -132,7 +132,7 @@ test.describe("Timer", () => {
 		await page.getByRole("button", { name: "Short" }).click();
 		await expect(timerDisplay).toContainText("15");
 
-		await page.keyboard.press("Space");
+		await page.getByRole("button", { name: "start" }).click();
 		await expect(page.getByText("focus")).toBeVisible();
 
 		await page.keyboard.press("b");

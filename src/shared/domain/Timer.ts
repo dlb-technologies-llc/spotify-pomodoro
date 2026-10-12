@@ -162,3 +162,16 @@ export class TimerState extends Schema.Class<TimerState>("TimerState")({
 		return `${this.isOvertime ? "+" : ""}${minutes}:${seconds}`;
 	}
 }
+
+/**
+ * What the browser stores so a reload resumes the countdown.
+ *
+ * @since 2.1.0
+ * @category Schemas
+ */
+export class TimerSnapshot extends Schema.Class<TimerSnapshot>("TimerSnapshot")(
+	{
+		state: TimerState,
+		runningSince: Schema.OptionFromNullOr(Schema.Number),
+	},
+) {}

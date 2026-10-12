@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- On-screen timer controls sized for touch; keyboard hints hide on touch screens (#59)
+- The timer and the sessions being recorded survive reloads and tab closes (#59)
+- Countdown in the browser tab title (#59)
+- Desktop notification when a phase ends while the app is in the background (#59)
+- Screen stays awake while the timer runs (#59)
+
+### Fixed
+
+- Space and Enter no longer hijack focused buttons and links (#59)
+
 ## [2.0.0] - 2026-10-12
 
 ### Changed
